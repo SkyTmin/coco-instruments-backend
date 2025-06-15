@@ -7,17 +7,17 @@ export class CreateDebtDto {
   @ApiProperty({ example: 'Кредит на машину' })
   @IsString()
   @MaxLength(255)
-  name: string;
+  name!: string;
 
   @ApiProperty({ example: 500000 })
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   @Transform(({ value }) => parseFloat(value))
-  amount: number;
+  amount!: number;
 
   @ApiProperty({ example: '2024-01-15' })
   @IsDateString()
-  date: string;
+  date!: string;
 
   @ApiProperty({ example: 'bank', required: false })
   @IsOptional()
@@ -27,7 +27,7 @@ export class CreateDebtDto {
 
   @ApiProperty({ enum: DebtStatus, example: DebtStatus.ACTIVE })
   @IsEnum(DebtStatus)
-  status: DebtStatus;
+  status!: DebtStatus;
 
   @ApiProperty({ example: 'Банк ВТБ, процентная ставка 12%', required: false })
   @IsOptional()
