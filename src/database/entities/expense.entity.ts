@@ -14,31 +14,31 @@ import { Sheet } from './sheet.entity';
 @Index(['sheetId'])
 export class Expense {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @Column({ type: 'varchar', length: 255 })
-  name: string;
+  name!: string;
 
   @Column({ type: 'decimal', precision: 10, scale: 2 })
-  amount: number;
+  amount!: number;
 
   @Column({ type: 'varchar', length: 100, nullable: true })
-  category: string;
+  category!: string | null;
 
   @Column({ type: 'text', nullable: true })
-  note: string;
+  note!: string | null;
 
   @Column({ type: 'uuid' })
-  sheetId: string;
+  sheetId!: string;
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 
   // Relations
   @ManyToOne(() => Sheet, (sheet) => sheet.expenses, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'sheetId' })
-  sheet: Sheet;
+  sheet!: Sheet;
 }
