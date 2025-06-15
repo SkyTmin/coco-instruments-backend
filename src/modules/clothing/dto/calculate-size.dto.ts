@@ -29,11 +29,11 @@ export class CalculateSizeDto {
   })
   @IsString()
   @IsIn(['outerwear', 'shirts', 'pants', 'shoes', 'underwear'])
-  category: string;
+  category!: string;
 
   @ApiProperty({ type: CalculationParametersDto })
   @IsObject()
   @ValidateNested()
   @Type(() => CalculationParametersDto)
-  parameters: CalculationParametersDto;
+  parameters!: CalculationParametersDto;
 }
