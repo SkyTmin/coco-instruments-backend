@@ -5,13 +5,13 @@ export class RegisterDto {
   @ApiProperty({ example: 'user@example.com' })
   @IsEmail({}, { message: 'Invalid email format' })
   @MaxLength(255)
-  email: string;
+  email!: string;
 
   @ApiProperty({ example: 'John Doe' })
   @IsString()
   @MinLength(2)
   @MaxLength(255)
-  name: string;
+  name!: string;
 
   @ApiProperty({ example: 'StrongP@ssw0rd!' })
   @IsString()
@@ -20,5 +20,5 @@ export class RegisterDto {
   @Matches(/((?=.*\d)|(?=.*\W+))(?![.\n])(?=.*[A-Z])(?=.*[a-z]).*$/, {
     message: 'Password must contain uppercase, lowercase, number/special character',
   })
-  password: string;
+  password!: string;
 }
