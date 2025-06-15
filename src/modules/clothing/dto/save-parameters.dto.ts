@@ -6,7 +6,7 @@ import { Transform } from 'class-transformer';
 export class SaveParametersDto {
   @ApiProperty({ enum: Gender, example: Gender.MALE })
   @IsEnum(Gender)
-  gender: Gender;
+  gender!: Gender;
 
   @ApiProperty({ example: 175, required: false })
   @IsOptional()
