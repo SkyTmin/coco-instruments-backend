@@ -7,7 +7,7 @@ export class CreatePaymentDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   @Transform(({ value }) => parseFloat(value))
-  amount: number;
+  amount!: number;
 
   @ApiProperty({ example: '2024-02-01', required: false })
   @IsOptional()
@@ -23,5 +23,5 @@ export class CreatePaymentDto {
   @ApiProperty({ example: false })
   @IsBoolean()
   @Transform(({ value }) => value === true || value === 'true')
-  preliminary: boolean;
+  preliminary!: boolean;
 }
