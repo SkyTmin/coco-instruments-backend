@@ -4,32 +4,33 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { ConfigService } from '@nestjs/config';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
+import { Request, Response, NextFunction } from 'express'; // ✅ Типы
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     logger: ['error', 'warn', 'log', 'debug', 'verbose'],
-    cors: false,
+    cors: false, // Отключаем встроенный CORS
   });
 
   const configService = app.get(ConfigService);
   const apiPrefix = configService.get<string>('API_PREFIX') || 'api/v1';
   app.setGlobalPrefix(apiPrefix);
 
-  // ✅ Custom CORS middleware
-  app.use((req, res, next) => {
+  // ✅ Кастомный CORS middleware с типами
+  app.use((req: Request, res: Response, next: NextFunction) => {
     const allowedOrigins = [
       'https://coco-instruments-production.up.railway.app',
       'http://localhost:3000',
       'http://localhost:3001',
       'http://127.0.0.1:3000',
-      'http://127.0.0.1:3001'
+      'http://127.0.0.1:3001',
     ];
 
     const origin = req.headers.origin;
     if (!origin || allowedOrigins.includes(origin)) {
       res.header('Access-Control-Allow-Origin', origin || '*');
     } else {
-      res.header('Access-Control-Allow-Origin', '*');
+      res.header('Access-Control-Allow-Origin', '*'); // На проде — временно
     }
 
     res.header('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
@@ -45,24 +46,28 @@ async function bootstrap() {
     next();
   });
 
-  // 🔒 Global filters and validation
+  // ✅ Глобальный фильтр ошибок
   app.useGlobalFilters(new AllExceptionsFilter());
-  app.useGlobalPipes(new ValidationPipe({
-    whitelist: true,
-    transform: true,
-    forbidNonWhitelisted: true,
-    transformOptions: {
-      enableImplicitConversion: true,
-    },
-    exceptionFactory: (errors) => {
-      const messages = errors.map(
-        error => `${error.property}: ${Object.values(error.constraints || {}).join(', ')}`
-      );
-      return new Error(messages.join('; '));
-    },
-  }));
 
-  // 📘 Swagger docs
+  // ✅ Глобальные пайпы валидации
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      forbidNonWhitelisted: true,
+      transformOptions: {
+        enableImplicitConversion: true,
+      },
+      exceptionFactory: (errors) => {
+        const messages = errors.map(
+          (error) => `${error.property}: ${Object.values(error.constraints || {}).join(', ')}`
+        );
+        return new Error(messages.join('; '));
+      },
+    }),
+  );
+
+  // ✅ Swagger (только для dev)
   if (configService.get<string>('NODE_ENV') !== 'production') {
     const config = new DocumentBuilder()
       .setTitle('Coco Instruments API')
@@ -74,11 +79,10 @@ async function bootstrap() {
     SwaggerModule.setup('api/docs', app, document);
   }
 
-  // ♻️ Shutdown hooks
   app.enableShutdownHooks();
 
   const port = parseInt(configService.get<string>('PORT') || '3000', 10);
-  const server = await app.listen(port, '0.0.0.0');
+  const server = await app.listen(port, '0.0.0.0'); // 🔥 обязательно 0.0.0.0 в Docker
   server.setTimeout(60000);
 
   const url = (await app.getUrl()).replace('0.0.0.0', 'localhost');
@@ -90,7 +94,7 @@ async function bootstrap() {
   console.log(`✅ Health check: ${url}/${apiPrefix}/health`);
 }
 
-bootstrap().catch(err => {
+bootstrap().catch((err) => {
   console.error('❌ Application failed to start:', err);
   process.exit(1);
 });
