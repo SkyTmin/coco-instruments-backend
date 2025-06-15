@@ -6,13 +6,13 @@ export class CreateExpenseDto {
   @ApiProperty({ example: 'Бензин' })
   @IsString()
   @MaxLength(255)
-  name: string;
+  name!: string;
 
   @ApiProperty({ example: 2500 })
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   @Transform(({ value }) => parseFloat(value))
-  amount: number;
+  amount!: number;
 
   @ApiProperty({ example: 'transport', required: false })
   @IsOptional()
