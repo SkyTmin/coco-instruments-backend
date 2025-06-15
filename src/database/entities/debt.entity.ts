@@ -22,44 +22,44 @@ export enum DebtStatus {
 @Index(['userId', 'status'])
 export class Debt {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @Column({ type: 'varchar', length: 255 })
-  name: string;
+  name!: string;
 
   @Column({ type: 'decimal', precision: 10, scale: 2 })
-  amount: number;
+  amount!: number;
 
   @Column({ type: 'date' })
-  date: Date;
+  date!: Date;
 
   @Column({ type: 'varchar', length: 100, nullable: true })
-  category: string;
+  category!: string | null;
 
   @Column({
     type: 'enum',
     enum: DebtStatus,
     default: DebtStatus.ACTIVE,
   })
-  status: DebtStatus;
+  status!: DebtStatus;
 
   @Column({ type: 'text', nullable: true })
-  note: string;
+  note!: string | null;
 
   @Column({ type: 'uuid' })
-  userId: string;
+  userId!: string;
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 
   // Relations
   @ManyToOne(() => User, (user) => user.debts, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'userId' })
-  user: User;
+  user!: User;
 
   @OneToMany(() => Payment, (payment) => payment.debt, { cascade: true })
-  payments: Payment[];
+  payments!: Payment[];
 }
