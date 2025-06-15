@@ -5,43 +5,39 @@ import { AppModule } from './app.module';
 import { ConfigService } from '@nestjs/config';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    logger: ['error', 'warn', 'log', 'debug', 'verbose'],
+  });
+  
   const configService = app.get(ConfigService);
 
   // Global prefix
   const apiPrefix = configService.get<string>('API_PREFIX') || 'api/v1';
   app.setGlobalPrefix(apiPrefix);
 
-  // ✅ CORS — расширенная настройка для production
-  const corsOrigin = configService.get<string>('CORS_ORIGIN') || 'https://coco-instruments-production.up.railway.app';
-  
+  // ✅ ИСПРАВЛЕННАЯ настройка CORS
   app.enableCors({
-    origin: (origin, callback) => {
-      // Список разрешенных origins
-      const allowedOrigins = [
-        'https://coco-instruments-production.up.railway.app',
-        'http://localhost:3000',
-        'http://localhost:3001',
-        'http://127.0.0.1:3000',
-        'http://127.0.0.1:3001'
-      ];
-      
-      // Разрешаем запросы без origin (например, от мобильных приложений)
-      if (!origin) return callback(null, true);
-      
-      if (allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(null, true); // В production можно изменить на false для большей безопасности
-      }
-    },
+    origin: true, // Временно разрешаем все origins для отладки
     credentials: true,
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
     exposedHeaders: ['Content-Type', 'Authorization'],
     preflightContinue: false,
     optionsSuccessStatus: 204,
-    maxAge: 86400, // 24 часа
+    maxAge: 86400,
+  });
+
+  // ✅ Дополнительные заголовки для всех ответов
+  app.use((req: any, res: any, next: any) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(204);
+    }
+    next();
   });
 
   // ✅ Global validation pipe
@@ -56,7 +52,7 @@ async function bootstrap() {
     }),
   );
 
-  // ✅ Swagger (в dev-среде)
+  // ✅ Swagger (только в dev-среде)
   if (configService.get<string>('NODE_ENV') !== 'production') {
     const config = new DocumentBuilder()
       .setTitle('Coco Instruments API')
@@ -69,9 +65,11 @@ async function bootstrap() {
   }
 
   const port = parseInt(configService.get<string>('PORT') || '3000', 10);
-  await app.listen(port, '0.0.0.0'); // Слушаем на всех интерфейсах
+  await app.listen(port, '0.0.0.0');
+  
   console.log(`🚀 App running at: ${await app.getUrl()}`);
-  console.log(`📍 CORS enabled for: ${corsOrigin}`);
+  console.log(`📍 CORS enabled for all origins (temporary for debugging)`);
   console.log(`🔧 Environment: ${configService.get<string>('NODE_ENV')}`);
+  console.log(`🌐 API Prefix: ${apiPrefix}`);
 }
 bootstrap();
