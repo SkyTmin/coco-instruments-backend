@@ -4,19 +4,19 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { ConfigService } from '@nestjs/config';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
-import { Request, Response, NextFunction } from 'express'; // ✅ Типы
+import { Request, Response, NextFunction } from 'express';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     logger: ['error', 'warn', 'log', 'debug', 'verbose'],
-    cors: false, // Отключаем встроенный CORS
+    cors: false, // Вручную настраиваем ниже
   });
 
   const configService = app.get(ConfigService);
   const apiPrefix = configService.get<string>('API_PREFIX') || 'api/v1';
   app.setGlobalPrefix(apiPrefix);
 
-  // ✅ Кастомный CORS middleware с типами
+  // Custom CORS Middleware
   app.use((req: Request, res: Response, next: NextFunction) => {
     const allowedOrigins = [
       'https://coco-instruments-production.up.railway.app',
@@ -25,12 +25,12 @@ async function bootstrap() {
       'http://127.0.0.1:3000',
       'http://127.0.0.1:3001',
     ];
-
     const origin = req.headers.origin;
+
     if (!origin || allowedOrigins.includes(origin)) {
       res.header('Access-Control-Allow-Origin', origin || '*');
     } else {
-      res.header('Access-Control-Allow-Origin', '*'); // На проде — временно
+      res.header('Access-Control-Allow-Origin', '*'); // fallback
     }
 
     res.header('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
@@ -46,10 +46,10 @@ async function bootstrap() {
     next();
   });
 
-  // ✅ Глобальный фильтр ошибок
+  // Global Exception Filter
   app.useGlobalFilters(new AllExceptionsFilter());
 
-  // ✅ Глобальные пайпы валидации
+  // Validation
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -67,7 +67,7 @@ async function bootstrap() {
     }),
   );
 
-  // ✅ Swagger (только для dev)
+  // Swagger (only in dev)
   if (configService.get<string>('NODE_ENV') !== 'production') {
     const config = new DocumentBuilder()
       .setTitle('Coco Instruments API')
@@ -75,6 +75,7 @@ async function bootstrap() {
       .setVersion('1.0')
       .addBearerAuth()
       .build();
+
     const document = SwaggerModule.createDocument(app, config);
     SwaggerModule.setup('api/docs', app, document);
   }
@@ -82,10 +83,10 @@ async function bootstrap() {
   app.enableShutdownHooks();
 
   const port = parseInt(configService.get<string>('PORT') || '3000', 10);
-  const server = await app.listen(port, '0.0.0.0'); // 🔥 обязательно 0.0.0.0 в Docker
-  server.setTimeout(60000);
+  const server = await app.listen(port, '0.0.0.0');
+  server.setTimeout(60000); // 60 сек
 
-  const url = (await app.getUrl()).replace('0.0.0.0', 'localhost');
+  const url = configService.get<string>('RAILWAY_PUBLIC_URL') || (await app.getUrl());
 
   console.log(`🚀 App running at: ${url}`);
   console.log(`📍 CORS configured with custom middleware`);
