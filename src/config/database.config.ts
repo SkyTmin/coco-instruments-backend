@@ -5,14 +5,18 @@ export const DatabaseConfig = registerAs(
   'database',
   (): TypeOrmModuleOptions => {
     const isProduction = process.env.NODE_ENV === 'production';
-    
+
+    if (!process.env.DATABASE_PASSWORD) {
+      throw new Error('❌ DATABASE_PASSWORD is not set in the environment!');
+    }
+
     return {
       type: 'postgres',
       url: process.env.DATABASE_URL,
       host: process.env.DATABASE_HOST || 'localhost',
       port: parseInt(process.env.DATABASE_PORT || '5432', 10),
       username: process.env.DATABASE_USERNAME || 'postgres',
-      password: process.env.DATABASE_PASSWORD || 'password',
+      password: process.env.DATABASE_PASSWORD!,
       database: process.env.DATABASE_NAME || 'coco_instruments',
       entities: [__dirname + '/../**/*.entity{.ts,.js}'],
       migrations: [__dirname + '/../database/migrations/*{.ts,.js}'],
