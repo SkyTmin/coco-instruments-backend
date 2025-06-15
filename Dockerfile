@@ -18,8 +18,6 @@ COPY . .
 # Сборка проекта NestJS
 RUN npm run build
 
-# ✅ ВРЕМЕННО: Выполняем миграции сразу после сборки
-RUN npm run migration:run
 
 # --- Production Stage ---
 FROM node:20-alpine AS production
