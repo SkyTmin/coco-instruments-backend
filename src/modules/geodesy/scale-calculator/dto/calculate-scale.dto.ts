@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsIn, Min } from 'class-validator';
+mport { IsString, IsNumber, IsIn, Min } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 
@@ -10,7 +10,7 @@ export class CalculateScaleDto {
   })
   @IsString()
   @IsIn(['scale', 'height'])
-  type: 'scale' | 'height';
+  type!: 'scale' | 'height';
 
   @ApiProperty({ 
     example: 500,
@@ -19,5 +19,5 @@ export class CalculateScaleDto {
   @IsNumber()
   @Min(0.001)
   @Transform(({ value }) => parseFloat(value))
-  value: number;
+  value!: number;
 }
