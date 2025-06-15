@@ -1,4 +1,4 @@
-mport { IsString, IsNumber, IsIn, Min } from 'class-validator';
+import { IsString, IsNumber, IsIn, Min } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 
