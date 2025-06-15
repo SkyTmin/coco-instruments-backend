@@ -3,35 +3,39 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Устанавливаем tini (обработка сигналов SIGTERM и др.) и bash для удобства (опционально)
+# Устанавливаем bash и другие инструменты
 RUN apk add --no-cache bash
 
-# Копируем только package.json и package-lock.json для установки зависимостей
+# Копируем только package.json и lock файл
 COPY package*.json ./
 
-# Устанавливаем зависимости полностью, чтобы собрать проект
+# Устанавливаем зависимости
 RUN npm ci
 
-# Копируем исходники
+# Копируем остальные файлы проекта
 COPY . .
 
-# Собираем NestJS проект
+# Сборка проекта NestJS
 RUN npm run build
 
+# ✅ ВРЕМЕННО: Выполняем миграции сразу после сборки
+RUN npm run migration:run
+
 # --- Production Stage ---
-FROM node:20-alpine as production
+FROM node:20-alpine AS production
 
 WORKDIR /app
 
-# Копируем только собранное приложение и зависимости
+# Копируем собранное приложение
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY package*.json ./
 
-# Устанавливаем переменные окружения (можно переопределить при запуске)
+# Устанавливаем переменные окружения
 ENV NODE_ENV=production
 ENV PORT=3000
 
 EXPOSE 3000
 
+# Запускаем приложение
 CMD ["node", "dist/main"]
