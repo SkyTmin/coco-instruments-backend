@@ -20,59 +20,59 @@ export enum Gender {
 @Index(['userId'], { unique: true })
 export class ClothingParameter {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @Column({
     type: 'enum',
     enum: Gender,
     default: Gender.MALE,
   })
-  gender: Gender;
+  gender!: Gender;
 
   @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
-  height: number;
+  height!: number | null;
 
   @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
-  weight: number;
+  weight!: number | null;
 
   @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
-  chest: number;
+  chest!: number | null;
 
   @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
-  underbust: number;
+  underbust!: number | null;
 
   @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
-  waist: number;
+  waist!: number | null;
 
   @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
-  hips: number;
+  hips!: number | null;
 
   @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
-  neck: number;
+  neck!: number | null;
 
   @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
-  foot: number;
+  foot!: number | null;
 
   @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
-  inseam: number;
+  inseam!: number | null;
 
   @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
-  wrist: number;
+  wrist!: number | null;
 
   @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
-  head: number;
+  head!: number | null;
 
   @Column({ type: 'uuid' })
-  userId: string;
+  userId!: string;
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 
   // Relations
   @ManyToOne(() => User, (user) => user.clothingParameters, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'userId' })
-  user: User;
+  user!: User;
 }
