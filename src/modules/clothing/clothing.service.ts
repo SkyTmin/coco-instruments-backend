@@ -79,19 +79,39 @@ export class ClothingService {
 
     switch (category) {
       case 'outerwear':
-        result = this.calculateOuterwearSize(parameters.chest);
+        if (parameters.chest !== undefined) {
+          result = this.calculateOuterwearSize(parameters.chest);
+        } else {
+          throw new Error('Chest measurement is required for outerwear');
+        }
         break;
       case 'shirts':
-        result = this.calculateShirtSize(parameters.chest, parameters.neck);
+        if (parameters.chest !== undefined) {
+          result = this.calculateShirtSize(parameters.chest, parameters.neck);
+        } else {
+          throw new Error('Chest measurement is required for shirts');
+        }
         break;
       case 'pants':
-        result = this.calculatePantsSize(parameters.waist, parameters.inseam);
+        if (parameters.waist !== undefined) {
+          result = this.calculatePantsSize(parameters.waist, parameters.inseam);
+        } else {
+          throw new Error('Waist measurement is required for pants');
+        }
         break;
       case 'shoes':
-        result = this.calculateShoeSize(parameters.foot);
+        if (parameters.foot !== undefined) {
+          result = this.calculateShoeSize(parameters.foot);
+        } else {
+          throw new Error('Foot measurement is required for shoes');
+        }
         break;
       case 'underwear':
-        result = this.calculateUnderwearSize(parameters.chest, parameters.underbust);
+        if (parameters.chest !== undefined && parameters.underbust !== undefined) {
+          result = this.calculateUnderwearSize(parameters.chest, parameters.underbust);
+        } else {
+          throw new Error('Chest and underbust measurements are required for underwear');
+        }
         break;
       default:
         throw new Error('Unknown category');
