@@ -20,6 +20,10 @@ import { Public } from '@common/decorators/public.decorator';
 import { GetUser } from '@common/decorators/get-user.decorator';
 import { User } from '@database/entities/user.entity';
 
+interface AuthRequest extends Request {
+  user: User;
+}
+
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
@@ -41,7 +45,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Login user' })
   @ApiResponse({ status: 200, description: 'User successfully logged in' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  async login(@Request() req, @Body() loginDto: LoginDto) {
+  async login(@Request() req: AuthRequest, @Body() loginDto: LoginDto) {
     return this.authService.login(req.user);
   }
 
@@ -52,7 +56,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Refresh access token' })
   @ApiResponse({ status: 200, description: 'Token successfully refreshed' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  async refresh(@Request() req, @Body() refreshTokenDto: RefreshTokenDto) {
+  async refresh(@Request() req: AuthRequest & { user: { id: string; refreshToken: string } }, @Body() refreshTokenDto: RefreshTokenDto) {
     return this.authService.refresh(req.user.id, refreshTokenDto.refreshToken);
   }
 
