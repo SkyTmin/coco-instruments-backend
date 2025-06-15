@@ -18,19 +18,12 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-
-    // 👇 TypeORM CLI для dev
     "typeorm": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js",
-
-    // 👇 Dev-миграции на .ts
     "migration:generate": "npm run typeorm -- migration:generate -d ./src/database/data-source.ts",
     "migration:run:dev": "npm run typeorm -- migration:run -d ./src/database/data-source.ts",
     "migration:revert:dev": "npm run typeorm -- migration:revert -d ./src/database/data-source.ts",
-
-    // 👇 Prod-миграции на .js
     "migration:run": "node -r dotenv/config ./node_modules/typeorm/cli.js migration:run -d dist/database/data-source.js",
     "migration:revert": "node -r dotenv/config ./node_modules/typeorm/cli.js migration:revert -d dist/database/data-source.js",
-
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
