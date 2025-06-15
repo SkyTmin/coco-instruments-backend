@@ -7,17 +7,17 @@ export class CreateSheetDto {
   @ApiProperty({ example: 'Зарплата за январь' })
   @IsString()
   @MaxLength(255)
-  name: string;
+  name!: string;
 
   @ApiProperty({ example: 50000 })
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   @Transform(({ value }) => parseFloat(value))
-  amount: number;
+  amount!: number;
 
   @ApiProperty({ example: '2024-01-15' })
   @IsDateString()
-  date: string;
+  date!: string;
 
   @ApiProperty({ example: 'Дополнительная информация', required: false })
   @IsOptional()
@@ -27,5 +27,5 @@ export class CreateSheetDto {
 
   @ApiProperty({ enum: SheetType, example: SheetType.INCOME })
   @IsEnum(SheetType)
-  type: SheetType;
+  type!: SheetType;
 }
