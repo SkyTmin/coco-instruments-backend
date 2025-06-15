@@ -9,12 +9,12 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
 
   // Global prefix
-  const apiPrefix = configService.get('API_PREFIX', 'api/v1');
+  const apiPrefix = configService.get<string>('API_PREFIX') || 'api/v1';
   app.setGlobalPrefix(apiPrefix);
 
   // CORS
   app.enableCors({
-    origin: configService.get('CORS_ORIGIN', '*').split(','),
+    origin: (configService.get<string>('CORS_ORIGIN') || '*').split(','),
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -32,8 +32,8 @@ async function bootstrap() {
     }),
   );
 
-  // Swagger documentation
-  if (configService.get('NODE_ENV') !== 'production') {
+  // Swagger
+  if (configService.get<string>('NODE_ENV') !== 'production') {
     const config = new DocumentBuilder()
       .setTitle('Coco Instruments API')
       .setDescription('The Coco Instruments API documentation')
@@ -44,8 +44,8 @@ async function bootstrap() {
     SwaggerModule.setup('api/docs', app, document);
   }
 
-  const port = configService.get('PORT', 3000);
+  const port = parseInt(configService.get<string>('PORT') || '3000', 10);
   await app.listen(port);
-  console.log(`Application is running on: ${await app.getUrl()}`);
+  console.log(`🚀 App running at: ${await app.getUrl()}`);
 }
 bootstrap();
