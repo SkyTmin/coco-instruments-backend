@@ -13,22 +13,22 @@ import { User } from './user.entity';
 @Index(['userId', 'createdAt'])
 export class ScaleCalculation {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @Column({ type: 'integer' })
-  scale: number;
+  scale!: number;
 
   @Column({ type: 'decimal', precision: 6, scale: 3 })
-  textHeight: number;
+  textHeight!: number;
 
   @Column({ type: 'uuid' })
-  userId: string;
+  userId!: string;
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   // Relations
   @ManyToOne(() => User, (user) => user.scaleCalculations, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'userId' })
-  user: User;
+  user!: User;
 }
