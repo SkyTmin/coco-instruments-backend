@@ -12,9 +12,9 @@ async function bootstrap() {
   const apiPrefix = configService.get<string>('API_PREFIX') || 'api/v1';
   app.setGlobalPrefix(apiPrefix);
 
-  // CORS
+  // ✅ CORS — статическое значение
   app.enableCors({
-    origin: (configService.get<string>('CORS_ORIGIN') || '*').split(','),
+    origin: 'https://coco-instruments-production.up.railway.app',
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
