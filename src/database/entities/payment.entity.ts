@@ -14,31 +14,31 @@ import { Debt } from './debt.entity';
 @Index(['debtId', 'preliminary'])
 export class Payment {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @Column({ type: 'decimal', precision: 10, scale: 2 })
-  amount: number;
+  amount!: number;
 
   @Column({ type: 'date', nullable: true })
-  date: Date;
+  date!: Date | null;
 
   @Column({ type: 'text', nullable: true })
-  note: string;
+  note!: string | null;
 
   @Column({ type: 'boolean', default: false })
-  preliminary: boolean;
+  preliminary!: boolean;
 
   @Column({ type: 'uuid' })
-  debtId: string;
+  debtId!: string;
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 
   // Relations
   @ManyToOne(() => Debt, (debt) => debt.payments, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'debtId' })
-  debt: Debt;
+  debt!: Debt;
 }
