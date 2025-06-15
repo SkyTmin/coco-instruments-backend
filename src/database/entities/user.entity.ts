@@ -16,42 +16,42 @@ import { ScaleCalculation } from './scale-calculation.entity';
 @Entity('users')
 export class User {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @Column({ type: 'varchar', length: 255 })
   @Index({ unique: true })
-  email: string;
+  email!: string;
 
   @Column({ type: 'varchar', length: 255 })
-  name: string;
+  name!: string;
 
   @Column({ type: 'varchar', length: 255 })
   @Exclude()
-  password: string;
+  password!: string;
 
   @Column({ type: 'varchar', length: 500, nullable: true })
   @Exclude()
-  refreshToken: string;
+  refreshToken!: string | null;
 
   @Column({ type: 'boolean', default: true })
-  isActive: boolean;
+  isActive!: boolean;
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 
   // Relations
   @OneToMany(() => Sheet, (sheet) => sheet.user)
-  sheets: Sheet[];
+  sheets!: Sheet[];
 
   @OneToMany(() => Debt, (debt) => debt.user)
-  debts: Debt[];
+  debts!: Debt[];
 
   @OneToMany(() => ClothingParameter, (param) => param.user)
-  clothingParameters: ClothingParameter[];
+  clothingParameters!: ClothingParameter[];
 
   @OneToMany(() => ScaleCalculation, (calc) => calc.user)
-  scaleCalculations: ScaleCalculation[];
+  scaleCalculations!: ScaleCalculation[];
 }
