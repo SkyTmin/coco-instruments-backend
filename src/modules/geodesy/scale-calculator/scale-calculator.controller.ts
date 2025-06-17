@@ -14,6 +14,7 @@ import { JwtAuthGuard } from '@modules/auth/guards/jwt-auth.guard';
 import { GetUser } from '@common/decorators/get-user.decorator';
 import { User } from '@database/entities/user.entity';
 import { CalculateScaleDto } from './dto/calculate-scale.dto';
+import { SyncHistoryDto } from './dto/sync-history.dto';
 
 @ApiTags('Scale Calculator')
 @ApiBearerAuth()
@@ -38,6 +39,16 @@ export class ScaleCalculatorController {
   @ApiResponse({ status: 200, description: 'Returns calculation history' })
   async getHistory(@GetUser() user: User) {
     return this.scaleCalculatorService.getHistory(user.id);
+  }
+
+  @Post('history')
+  @ApiOperation({ summary: 'Sync calculation history' })
+  @ApiResponse({ status: 201, description: 'History synced successfully' })
+  async syncHistory(
+    @GetUser() user: User,
+    @Body() syncHistoryDto: SyncHistoryDto,
+  ) {
+    return this.scaleCalculatorService.syncHistory(user.id, syncHistoryDto);
   }
 
   @Delete('history')
