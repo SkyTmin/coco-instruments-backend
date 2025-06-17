@@ -1,203 +1,94 @@
 import {
   Injectable,
-  ConflictException,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { ClothingParameter } from '@database/entities/clothing-parameter.entity';
-import { SaveParametersDto } from './dto/save-parameters.dto';
-import { UpdateParametersDto } from './dto/update-parameters.dto';
-import { CalculateSizeDto } from './dto/calculate-size.dto';
+import { ClothingParameter, Gender } from '@database/entities/clothing-parameter.entity';
+import { SyncClothingDataDto } from './dto/sync-clothing-data.dto';
 
 @Injectable()
 export class ClothingService {
+  private userSavedResults: Map<string, any[]> = new Map();
+
   constructor(
     @InjectRepository(ClothingParameter)
     private readonly parameterRepository: Repository<ClothingParameter>,
   ) {}
 
-  async getParameters(userId: string) {
+  async getClothingData(userId: string) {
     const parameters = await this.parameterRepository.findOne({
       where: { userId },
     });
 
+    const savedResults = this.userSavedResults.get(userId) || [];
+
     if (!parameters) {
       return {
-        data: null,
+        success: true,
+        data: {
+          parameters: {},
+          savedResults,
+          currentGender: 'male',
+        },
       };
     }
 
     return {
-      data: this.formatParameters(parameters),
-    };
-  }
-
-  async saveParameters(userId: string, saveParametersDto: SaveParametersDto) {
-    // Check if parameters already exist
-    const existing = await this.parameterRepository.findOne({
-      where: { userId },
-    });
-
-    if (existing) {
-      throw new ConflictException('Parameters already exist. Use PUT to update.');
-    }
-
-    const parameters = this.parameterRepository.create({
-      ...saveParametersDto,
-      userId,
-    });
-
-    const saved = await this.parameterRepository.save(parameters);
-
-    return {
-      data: this.formatParameters(saved),
-    };
-  }
-
-  async updateParameters(userId: string, updateParametersDto: UpdateParametersDto) {
-    const parameters = await this.parameterRepository.findOne({
-      where: { userId },
-    });
-
-    if (!parameters) {
-      throw new NotFoundException('Parameters not found');
-    }
-
-    Object.assign(parameters, updateParametersDto);
-
-    const saved = await this.parameterRepository.save(parameters);
-
-    return {
-      data: this.formatParameters(saved),
-    };
-  }
-
-  async calculateSize(calculateSizeDto: CalculateSizeDto) {
-    const { category, parameters } = calculateSizeDto;
-    let result: any = {};
-
-    switch (category) {
-      case 'outerwear':
-        if (parameters.chest !== undefined) {
-          result = this.calculateOuterwearSize(parameters.chest);
-        } else {
-          throw new Error('Chest measurement is required for outerwear');
-        }
-        break;
-      case 'shirts':
-        if (parameters.chest !== undefined) {
-          result = this.calculateShirtSize(parameters.chest, parameters.neck);
-        } else {
-          throw new Error('Chest measurement is required for shirts');
-        }
-        break;
-      case 'pants':
-        if (parameters.waist !== undefined) {
-          result = this.calculatePantsSize(parameters.waist, parameters.inseam);
-        } else {
-          throw new Error('Waist measurement is required for pants');
-        }
-        break;
-      case 'shoes':
-        if (parameters.foot !== undefined) {
-          result = this.calculateShoeSize(parameters.foot);
-        } else {
-          throw new Error('Foot measurement is required for shoes');
-        }
-        break;
-      case 'underwear':
-        if (parameters.chest !== undefined && parameters.underbust !== undefined) {
-          result = this.calculateUnderwearSize(parameters.chest, parameters.underbust);
-        } else {
-          throw new Error('Chest and underbust measurements are required for underwear');
-        }
-        break;
-      default:
-        throw new Error('Unknown category');
-    }
-
-    return {
+      success: true,
       data: {
-        category,
-        result,
+        parameters: this.formatParameters(parameters),
+        savedResults,
+        currentGender: parameters.gender,
       },
     };
   }
 
-  private calculateOuterwearSize(chest: number) {
-    const ru = Math.round(chest / 2);
-    const eu = ru;
-    const us = ru - 10;
-    const int = this.getInternationalSize(chest);
-    
-    return { ru, eu, us, int };
-  }
+  async syncClothingData(userId: string, syncClothingDataDto: SyncClothingDataDto) {
+    const { parameters, savedResults, currentGender } = syncClothingDataDto;
 
-  private calculateShirtSize(chest: number, neck?: number) {
-    const bodySize = Math.round(chest / 2);
-    const collarSize = neck ? neck + 1.5 : null;
-    const int = this.getInternationalSize(chest);
-    
-    return { bodySize, collarSize, int };
-  }
+    // Сохраняем или обновляем параметры
+    let clothingParameters = await this.parameterRepository.findOne({
+      where: { userId },
+    });
 
-  private calculatePantsSize(waist: number, inseam?: number) {
-    const w = Math.round(waist / 2.54);
-    const l = inseam ? Math.round(inseam / 2.54) : null;
-    
-    return { w, l };
-  }
+    if (!clothingParameters) {
+      clothingParameters = this.parameterRepository.create({
+        userId,
+        gender: currentGender as Gender,
+        ...parameters,
+      });
+    } else {
+      Object.assign(clothingParameters, {
+        gender: currentGender as Gender,
+        ...parameters,
+      });
+    }
 
-  private calculateShoeSize(footLength: number) {
-    const ru = Math.round(footLength * 1.5);
-    const eu = Math.round(footLength + 1.5);
-    const usMale = Math.round((footLength / 2.54) * 3 - 22);
-    const usFemale = Math.round((footLength / 2.54) * 3 - 21);
-    const uk = eu - 33;
-    
-    return { ru, eu, usMale, usFemale, uk };
-  }
+    await this.parameterRepository.save(clothingParameters);
 
-  private calculateUnderwearSize(chest: number, underbust: number) {
-    const bandSize = Math.round(underbust);
-    const difference = chest - underbust;
-    let cupSize = 'A';
-    
-    if (difference < 10) cupSize = 'A';
-    else if (difference >= 10 && difference <= 12) cupSize = 'B';
-    else if (difference >= 13 && difference <= 15) cupSize = 'C';
-    else if (difference >= 16 && difference <= 18) cupSize = 'D';
-    else if (difference > 18) cupSize = 'E';
-    
-    return { size: `${bandSize}${cupSize}`, bandSize, cupSize };
-  }
+    // Сохраняем результаты
+    this.userSavedResults.set(userId, savedResults);
 
-  private getInternationalSize(chest: number): string {
-    if (chest >= 86 && chest < 94) return 'S';
-    if (chest >= 94 && chest < 102) return 'M';
-    if (chest >= 102 && chest < 110) return 'L';
-    if (chest >= 110 && chest < 118) return 'XL';
-    if (chest >= 118 && chest < 126) return 'XXL';
-    return 'XXXL';
+    return {
+      success: true,
+      data: { message: 'Данные сохранены' },
+    };
   }
 
   private formatParameters(parameters: ClothingParameter) {
     return {
-      gender: parameters.gender,
-      height: parameters.height ? Number(parameters.height) : null,
-      weight: parameters.weight ? Number(parameters.weight) : null,
-      chest: parameters.chest ? Number(parameters.chest) : null,
-      underbust: parameters.underbust ? Number(parameters.underbust) : null,
-      waist: parameters.waist ? Number(parameters.waist) : null,
-      hips: parameters.hips ? Number(parameters.hips) : null,
-      neck: parameters.neck ? Number(parameters.neck) : null,
-      foot: parameters.foot ? Number(parameters.foot) : null,
-      inseam: parameters.inseam ? Number(parameters.inseam) : null,
-      wrist: parameters.wrist ? Number(parameters.wrist) : null,
-      head: parameters.head ? Number(parameters.head) : null,
-      createdAt: parameters.createdAt,
-      updatedAt: parameters.updatedAt,
+      height: parameters.height ? Number(parameters.height) : undefined,
+      weight: parameters.weight ? Number(parameters.weight) : undefined,
+      chest: parameters.chest ? Number(parameters.chest) : undefined,
+      underbust: parameters.underbust ? Number(parameters.underbust) : undefined,
+      waist: parameters.waist ? Number(parameters.waist) : undefined,
+      hips: parameters.hips ? Number(parameters.hips) : undefined,
+      neck: parameters.neck ? Number(parameters.neck) : undefined,
+      foot: parameters.foot ? Number(parameters.foot) : undefined,
+      inseam: parameters.inseam ? Number(parameters.inseam) : undefined,
+      wrist: parameters.wrist ? Number(parameters.wrist) : undefined,
+      head: parameters.head ? Number(parameters.head) : undefined,
     };
   }
 }
