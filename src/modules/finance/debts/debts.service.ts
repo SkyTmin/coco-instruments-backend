@@ -10,9 +10,13 @@ import { Payment } from '@database/entities/payment.entity';
 import { CreateDebtDto } from './dto/create-debt.dto';
 import { UpdateDebtDto } from './dto/update-debt.dto';
 import { CreatePaymentDto } from './dto/create-payment.dto';
+import { SyncDebtsDto } from './dto/sync-debts.dto';
+import { SyncDebtCategoriesDto } from './dto/sync-debt-categories.dto';
 
 @Injectable()
 export class DebtsService {
+  private userCategories: Map<string, Array<{ id: string; name: string }>> = new Map();
+
   constructor(
     @InjectRepository(Debt)
     private readonly debtRepository: Repository<Debt>,
@@ -20,38 +24,82 @@ export class DebtsService {
     private readonly paymentRepository: Repository<Payment>,
   ) {}
 
-  async getDebts(userId: string, sort?: string, status?: DebtStatus) {
+  async getDebts(userId: string) {
     const query = this.debtRepository
       .createQueryBuilder('debt')
       .leftJoinAndSelect('debt.payments', 'payment')
-      .where('debt.userId = :userId', { userId });
-
-    if (status) {
-      query.andWhere('debt.status = :status', { status });
-    }
-
-    // Apply sorting
-    switch (sort) {
-      case 'date-asc':
-        query.orderBy('debt.date', 'ASC');
-        break;
-      case 'amount-desc':
-        query.orderBy('debt.amount', 'DESC');
-        break;
-      case 'amount-asc':
-        query.orderBy('debt.amount', 'ASC');
-        break;
-      case 'status':
-        query.orderBy('debt.status', 'ASC');
-        break;
-      default: // date-desc
-        query.orderBy('debt.date', 'DESC');
-    }
+      .where('debt.userId = :userId', { userId })
+      .orderBy('debt.date', 'DESC');
 
     const debts = await query.getMany();
 
     return {
-      data: debts.map(this.formatDebt),
+      success: true,
+      data: debts.map(this.formatDebtForFrontend),
+    };
+  }
+
+  async syncDebts(userId: string, syncDebtsDto: SyncDebtsDto) {
+    const { debts } = syncDebtsDto;
+
+    // Удаляем все существующие долги пользователя
+    await this.debtRepository.delete({ userId });
+
+    // Создаем новые долги
+    for (const debtData of debts) {
+      const debt = this.debtRepository.create({
+        id: debtData.id,
+        name: debtData.name,
+        amount: debtData.amount,
+        date: new Date(debtData.date),
+        category: debtData.category,
+        status: debtData.status as DebtStatus,
+        note: debtData.note,
+        userId,
+      });
+
+      const savedDebt = await this.debtRepository.save(debt);
+
+      // Создаем платежи для долга
+      if (debtData.payments && debtData.payments.length > 0) {
+        const payments = debtData.payments.map(paymentData =>
+          this.paymentRepository.create({
+            id: paymentData.id,
+            amount: paymentData.amount,
+            date: paymentData.date ? new Date(paymentData.date) : null,
+            note: paymentData.note,
+            preliminary: paymentData.preliminary,
+            debtId: savedDebt.id,
+          })
+        );
+
+        await this.paymentRepository.save(payments);
+      }
+    }
+
+    return {
+      success: true,
+      data: { message: 'Данные сохранены' },
+    };
+  }
+
+  async getCategories(userId: string) {
+    const userCategories = this.userCategories.get(userId) || [];
+    
+    return {
+      success: true,
+      data: userCategories,
+    };
+  }
+
+  async syncCategories(userId: string, syncCategoriesDto: SyncDebtCategoriesDto) {
+    const { categories } = syncCategoriesDto;
+    
+    this.userCategories.set(userId, categories);
+
+    return {
+      success: true,
+      data: { message: 'Данные сохранены' },
     };
   }
 
@@ -64,7 +112,8 @@ export class DebtsService {
     const savedDebt = await this.debtRepository.save(debt);
 
     return {
-      data: this.formatDebt(savedDebt),
+      success: true,
+      data: this.formatDebtForFrontend(savedDebt),
     };
   }
 
@@ -76,7 +125,8 @@ export class DebtsService {
     const savedDebt = await this.debtRepository.save(debt);
 
     return {
-      data: this.formatDebt(savedDebt),
+      success: true,
+      data: this.formatDebtForFrontend(savedDebt),
     };
   }
 
@@ -84,6 +134,11 @@ export class DebtsService {
     const debt = await this.findUserDebt(userId, debtId);
 
     await this.debtRepository.remove(debt);
+
+    return {
+      success: true,
+      data: { message: 'Долг удален' },
+    };
   }
 
   async addPayment(userId: string, debtId: string, createPaymentDto: CreatePaymentDto) {
@@ -100,6 +155,7 @@ export class DebtsService {
     await this.updateDebtStatus(debt);
 
     return {
+      success: true,
       data: savedPayment,
     };
   }
@@ -141,7 +197,7 @@ export class DebtsService {
     }
   }
 
-  private formatDebt(debt: Debt) {
+  private formatDebtForFrontend(debt: Debt) {
     const payments = debt.payments || [];
     const regularPayments = payments.filter(p => !p.preliminary);
     const totalPaid = regularPayments.reduce((sum, p) => sum + Number(p.amount), 0);
@@ -150,21 +206,17 @@ export class DebtsService {
       id: debt.id,
       name: debt.name,
       amount: Number(debt.amount),
-      date: debt.date,
+      date: debt.date.toISOString().split('T')[0], // Форматируем дату как YYYY-MM-DD
       category: debt.category,
       status: debt.status,
       note: debt.note,
       payments: payments.map(payment => ({
         id: payment.id,
         amount: Number(payment.amount),
-        date: payment.date,
+        date: payment.date ? payment.date.toISOString().split('T')[0] : '',
         note: payment.note,
         preliminary: payment.preliminary,
       })),
-      totalPaid,
-      remaining: Math.max(0, Number(debt.amount) - totalPaid),
-      createdAt: debt.createdAt,
-      updatedAt: debt.updatedAt,
     };
   }
 }
