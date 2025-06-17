@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ScaleCalculation } from '@database/entities/scale-calculation.entity';
 import { CalculateScaleDto } from './dto/calculate-scale.dto';
+import { SyncHistoryDto } from './dto/sync-history.dto';
 
 @Injectable()
 export class ScaleCalculatorService {
@@ -53,6 +54,7 @@ export class ScaleCalculatorService {
     });
 
     return {
+      success: true,
       data: calculations.map(calc => ({
         id: calc.id,
         scale: calc.scale,
@@ -62,8 +64,39 @@ export class ScaleCalculatorService {
     };
   }
 
+  async syncHistory(userId: string, syncHistoryDto: SyncHistoryDto) {
+    const { history } = syncHistoryDto;
+
+    // Удаляем всю существующую историю пользователя
+    await this.calculationRepository.delete({ userId });
+
+    // Создаем новые записи на основе данных фронтенда
+    const calculations = history.map(item => 
+      this.calculationRepository.create({
+        scale: item.scale,
+        textHeight: item.textHeight,
+        userId,
+        createdAt: new Date(item.timestamp),
+      })
+    );
+
+    if (calculations.length > 0) {
+      await this.calculationRepository.save(calculations);
+    }
+
+    return {
+      success: true,
+      data: { message: 'История синхронизирована' },
+    };
+  }
+
   async clearHistory(userId: string) {
     await this.calculationRepository.delete({ userId });
+    
+    return {
+      success: true,
+      data: { message: 'История очищена' },
+    };
   }
 
   private calculateTextHeightFromScale(scale: number): number {
