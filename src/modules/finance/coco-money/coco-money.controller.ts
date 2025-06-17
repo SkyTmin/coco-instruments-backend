@@ -21,27 +21,53 @@ import { CreateSheetDto } from './dto/create-sheet.dto';
 import { UpdateSheetDto } from './dto/update-sheet.dto';
 import { CreateExpenseDto } from './dto/create-expense.dto';
 import { CreateCategoryDto } from './dto/create-category.dto';
+import { SyncSheetsDto } from './dto/sync-sheets.dto';
+import { SyncCategoriesDto } from './dto/sync-categories.dto';
 import { SheetType } from '@database/entities/sheet.entity';
 
 @ApiTags('Coco Money')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
-@Controller('finance/coco-money')
+@Controller('coco-money') // Изменили путь чтобы соответствовал фронтенду
 export class CocoMoneyController {
   constructor(private readonly cocoMoneyService: CocoMoneyService) {}
 
   @Get('sheets')
-  @ApiOperation({ summary: 'Get all sheets or filter by type' })
-  @ApiQuery({ name: 'type', enum: SheetType, required: false })
+  @ApiOperation({ summary: 'Get all sheets' })
   @ApiResponse({ status: 200, description: 'Returns sheets' })
-  async getSheets(
-    @GetUser() user: User,
-    @Query('type') type?: SheetType,
-  ) {
-    return this.cocoMoneyService.getSheets(user.id, type);
+  async getSheets(@GetUser() user: User) {
+    return this.cocoMoneyService.getSheets(user.id);
   }
 
   @Post('sheets')
+  @ApiOperation({ summary: 'Sync sheets data' })
+  @ApiResponse({ status: 201, description: 'Sheets synced successfully' })
+  async syncSheets(
+    @GetUser() user: User,
+    @Body() syncSheetsDto: SyncSheetsDto,
+  ) {
+    return this.cocoMoneyService.syncSheets(user.id, syncSheetsDto);
+  }
+
+  @Get('categories')
+  @ApiOperation({ summary: 'Get user categories' })
+  @ApiResponse({ status: 200, description: 'Returns categories' })
+  async getCategories(@GetUser() user: User) {
+    return this.cocoMoneyService.getCategories(user.id);
+  }
+
+  @Post('categories')
+  @ApiOperation({ summary: 'Sync categories data' })
+  @ApiResponse({ status: 201, description: 'Categories synced successfully' })
+  async syncCategories(
+    @GetUser() user: User,
+    @Body() syncCategoriesDto: SyncCategoriesDto,
+  ) {
+    return this.cocoMoneyService.syncCategories(user.id, syncCategoriesDto);
+  }
+
+  // Дополнительные эндпоинты для создания отдельных листов и расходов
+  @Post('sheets/create')
   @ApiOperation({ summary: 'Create new sheet' })
   @ApiResponse({ status: 201, description: 'Sheet created successfully' })
   async createSheet(
@@ -84,14 +110,7 @@ export class CocoMoneyController {
     return this.cocoMoneyService.addExpense(user.id, sheetId, createExpenseDto);
   }
 
-  @Get('categories')
-  @ApiOperation({ summary: 'Get user categories' })
-  @ApiResponse({ status: 200, description: 'Returns categories' })
-  async getCategories(@GetUser() user: User) {
-    return this.cocoMoneyService.getCategories(user.id);
-  }
-
-  @Post('categories')
+  @Post('categories/create')
   @ApiOperation({ summary: 'Create new category' })
   @ApiResponse({ status: 201, description: 'Category created successfully' })
   async createCategory(
