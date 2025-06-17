@@ -15,6 +15,7 @@ import { GetUser } from '@common/decorators/get-user.decorator';
 import { User } from '@database/entities/user.entity';
 import { CalculateScaleDto } from './dto/calculate-scale.dto';
 import { SyncHistoryDto } from './dto/sync-history.dto';
+import { SyncHistoryDto } from './dto/sync-history.dto';
 
 @ApiTags('Scale Calculator')
 @ApiBearerAuth()
