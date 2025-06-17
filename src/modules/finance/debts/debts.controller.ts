@@ -20,29 +20,53 @@ import { User } from '@database/entities/user.entity';
 import { CreateDebtDto } from './dto/create-debt.dto';
 import { UpdateDebtDto } from './dto/update-debt.dto';
 import { CreatePaymentDto } from './dto/create-payment.dto';
+import { SyncDebtsDto } from './dto/sync-debts.dto';
+import { SyncDebtCategoriesDto } from './dto/sync-debt-categories.dto';
 import { DebtStatus } from '@database/entities/debt.entity';
 
 @ApiTags('Debts')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
-@Controller('finance/debts')
+@Controller('debts') // Изменили путь чтобы соответствовал фронтенду
 export class DebtsController {
   constructor(private readonly debtsService: DebtsService) {}
 
   @Get()
   @ApiOperation({ summary: 'Get all debts' })
-  @ApiQuery({ name: 'sort', required: false, example: 'date-desc' })
-  @ApiQuery({ name: 'status', enum: DebtStatus, required: false })
   @ApiResponse({ status: 200, description: 'Returns debts' })
-  async getDebts(
-    @GetUser() user: User,
-    @Query('sort') sort?: string,
-    @Query('status') status?: DebtStatus,
-  ) {
-    return this.debtsService.getDebts(user.id, sort, status);
+  async getDebts(@GetUser() user: User) {
+    return this.debtsService.getDebts(user.id);
   }
 
   @Post()
+  @ApiOperation({ summary: 'Sync debts data' })
+  @ApiResponse({ status: 201, description: 'Debts synced successfully' })
+  async syncDebts(
+    @GetUser() user: User,
+    @Body() syncDebtsDto: SyncDebtsDto,
+  ) {
+    return this.debtsService.syncDebts(user.id, syncDebtsDto);
+  }
+
+  @Get('categories')
+  @ApiOperation({ summary: 'Get debt categories' })
+  @ApiResponse({ status: 200, description: 'Returns debt categories' })
+  async getCategories(@GetUser() user: User) {
+    return this.debtsService.getCategories(user.id);
+  }
+
+  @Post('categories')
+  @ApiOperation({ summary: 'Sync debt categories' })
+  @ApiResponse({ status: 201, description: 'Categories synced successfully' })
+  async syncCategories(
+    @GetUser() user: User,
+    @Body() syncDebtCategoriesDto: SyncDebtCategoriesDto,
+  ) {
+    return this.debtsService.syncCategories(user.id, syncDebtCategoriesDto);
+  }
+
+  // Дополнительные эндпоинты для создания отдельных долгов
+  @Post('create')
   @ApiOperation({ summary: 'Create new debt' })
   @ApiResponse({ status: 201, description: 'Debt created successfully' })
   async createDebt(
