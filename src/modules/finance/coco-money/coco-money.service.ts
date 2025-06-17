@@ -12,10 +12,12 @@ import { CreateSheetDto } from './dto/create-sheet.dto';
 import { UpdateSheetDto } from './dto/update-sheet.dto';
 import { CreateExpenseDto } from './dto/create-expense.dto';
 import { CreateCategoryDto } from './dto/create-category.dto';
+import { SyncSheetsDto } from './dto/sync-sheets.dto';
+import { SyncCategoriesDto } from './dto/sync-categories.dto';
 
 @Injectable()
 export class CocoMoneyService {
-  private userCategories: Map<string, string[]> = new Map();
+  private userCategories: Map<string, Array<{ id: string; name: string }>> = new Map();
 
   constructor(
     @InjectRepository(Sheet)
@@ -24,21 +26,97 @@ export class CocoMoneyService {
     private readonly expenseRepository: Repository<Expense>,
   ) {}
 
-  async getSheets(userId: string, type?: SheetType) {
+  async getSheets(userId: string) {
     const query = this.sheetRepository
       .createQueryBuilder('sheet')
       .leftJoinAndSelect('sheet.expenses', 'expense')
       .where('sheet.userId = :userId', { userId })
       .orderBy('sheet.createdAt', 'DESC');
 
-    if (type) {
-      query.andWhere('sheet.type = :type', { type });
-    }
-
     const sheets = await query.getMany();
 
+    // Группируем по типу для фронтенда
+    const income = sheets
+      .filter(sheet => sheet.type === SheetType.INCOME)
+      .map(this.formatSheetForFrontend);
+
+    const preliminary = sheets
+      .filter(sheet => sheet.type === SheetType.PRELIMINARY)
+      .map(this.formatSheetForFrontend);
+
     return {
-      data: sheets.map(this.formatSheet),
+      success: true,
+      data: {
+        income,
+        preliminary,
+      },
+    };
+  }
+
+  async syncSheets(userId: string, syncSheetsDto: SyncSheetsDto) {
+    const { sheets } = syncSheetsDto;
+
+    // Удаляем все существующие листы пользователя
+    await this.sheetRepository.delete({ userId });
+
+    // Создаем новые листы
+    const allSheets = [
+      ...sheets.income.map(sheet => ({ ...sheet, type: SheetType.INCOME })),
+      ...sheets.preliminary.map(sheet => ({ ...sheet, type: SheetType.PRELIMINARY })),
+    ];
+
+    for (const sheetData of allSheets) {
+      const sheet = this.sheetRepository.create({
+        id: sheetData.id,
+        name: sheetData.name,
+        amount: sheetData.amount,
+        date: new Date(sheetData.date),
+        note: sheetData.note,
+        type: sheetData.type,
+        userId,
+      });
+
+      const savedSheet = await this.sheetRepository.save(sheet);
+
+      // Создаем расходы для листа
+      if (sheetData.expenses && sheetData.expenses.length > 0) {
+        const expenses = sheetData.expenses.map(expenseData =>
+          this.expenseRepository.create({
+            name: expenseData.name,
+            amount: expenseData.amount,
+            category: expenseData.category,
+            note: expenseData.note,
+            sheetId: savedSheet.id,
+          })
+        );
+
+        await this.expenseRepository.save(expenses);
+      }
+    }
+
+    return {
+      success: true,
+      data: { message: 'Данные сохранены' },
+    };
+  }
+
+  async getCategories(userId: string) {
+    const userCategories = this.userCategories.get(userId) || [];
+    
+    return {
+      success: true,
+      data: userCategories,
+    };
+  }
+
+  async syncCategories(userId: string, syncCategoriesDto: SyncCategoriesDto) {
+    const { categories } = syncCategoriesDto;
+    
+    this.userCategories.set(userId, categories);
+
+    return {
+      success: true,
+      data: { message: 'Данные сохранены' },
     };
   }
 
@@ -51,7 +129,8 @@ export class CocoMoneyService {
     const savedSheet = await this.sheetRepository.save(sheet);
 
     return {
-      data: this.formatSheet(savedSheet),
+      success: true,
+      data: this.formatSheetForFrontend(savedSheet),
     };
   }
 
@@ -63,7 +142,8 @@ export class CocoMoneyService {
     const savedSheet = await this.sheetRepository.save(sheet);
 
     return {
-      data: this.formatSheet(savedSheet),
+      success: true,
+      data: this.formatSheetForFrontend(savedSheet),
     };
   }
 
@@ -71,6 +151,11 @@ export class CocoMoneyService {
     const sheet = await this.findUserSheet(userId, sheetId);
 
     await this.sheetRepository.remove(sheet);
+
+    return {
+      success: true,
+      data: { message: 'Лист удален' },
+    };
   }
 
   async addExpense(userId: string, sheetId: string, createExpenseDto: CreateExpenseDto) {
@@ -84,47 +169,30 @@ export class CocoMoneyService {
     const savedExpense = await this.expenseRepository.save(expense);
 
     return {
+      success: true,
       data: savedExpense,
-    };
-  }
-
-  async getCategories(userId: string) {
-    const userCategories = this.userCategories.get(userId) || [];
-    
-    const defaultCategories = [
-      { id: 'transport', name: 'Транспорт' },
-      { id: 'food', name: 'Продукты' },
-      { id: 'utilities', name: 'Коммунальные услуги' },
-      { id: 'entertainment', name: 'Развлечения' },
-      { id: 'other', name: 'Другое' },
-    ];
-
-    return {
-      data: [
-        ...defaultCategories,
-        ...userCategories.map(name => ({
-          id: name.toLowerCase().replace(/\s+/g, '-'),
-          name,
-        })),
-      ],
     };
   }
 
   async createCategory(userId: string, createCategoryDto: CreateCategoryDto) {
     const userCategories = this.userCategories.get(userId) || [];
     
-    if (userCategories.includes(createCategoryDto.name)) {
+    const existingCategory = userCategories.find(cat => cat.name === createCategoryDto.name);
+    if (existingCategory) {
       throw new BadRequestException('Category already exists');
     }
 
-    userCategories.push(createCategoryDto.name);
+    const newCategory = {
+      id: createCategoryDto.name.toLowerCase().replace(/\s+/g, '-'),
+      name: createCategoryDto.name,
+    };
+
+    userCategories.push(newCategory);
     this.userCategories.set(userId, userCategories);
 
     return {
-      data: {
-        id: createCategoryDto.name.toLowerCase().replace(/\s+/g, '-'),
-        name: createCategoryDto.name,
-      },
+      success: true,
+      data: newCategory,
     };
   }
 
@@ -145,23 +213,19 @@ export class CocoMoneyService {
     return sheet;
   }
 
-  private formatSheet(sheet: Sheet) {
+  private formatSheetForFrontend(sheet: Sheet) {
     return {
       id: sheet.id,
       name: sheet.name,
       amount: Number(sheet.amount),
-      date: sheet.date,
+      date: sheet.date.toISOString().split('T')[0], // Форматируем дату как YYYY-MM-DD
       note: sheet.note,
-      type: sheet.type,
       expenses: sheet.expenses?.map(expense => ({
-        id: expense.id,
         name: expense.name,
         amount: Number(expense.amount),
         category: expense.category,
         note: expense.note,
       })) || [],
-      createdAt: sheet.createdAt,
-      updatedAt: sheet.updatedAt,
     };
   }
 }
