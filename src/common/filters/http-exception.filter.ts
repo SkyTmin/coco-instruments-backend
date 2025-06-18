@@ -1,4 +1,4 @@
-// src/common/filters/http-exception.filter.ts - Enterprise-Grade Exception Handling
+// src/common/filters/http-exception.filter.ts - Enterprise-Grade Exception Handling with Full Type Safety
 import {
   ExceptionFilter,
   Catch,
@@ -6,40 +6,120 @@ import {
   HttpException,
   HttpStatus,
   Logger,
-  BadRequestException,
-  UnauthorizedException,
-  ForbiddenException,
-  NotFoundException,
-  ConflictException,
-  InternalServerErrorException,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
-import { ValidationError } from 'class-validator';
 import { QueryFailedError, EntityNotFoundError } from 'typeorm';
 
 interface ErrorResponse {
-  statusCode: number;
-  error: string;
-  message: string | string[];
-  timestamp: string;
-  path: string;
-  method: string;
-  requestId?: string;
-  details?: any;
-  stack?: string;
+  readonly statusCode: number;
+  readonly error: string;
+  readonly message: string | string[];
+  readonly timestamp: string;
+  readonly path: string;
+  readonly method: string;
+  readonly requestId: string;
+  readonly details?: Record<string, unknown>;
+  readonly stack?: string;
 }
+
+interface ErrorContext {
+  readonly requestId: string;
+  readonly method: string;
+  readonly path: string;
+  readonly statusCode: number;
+  readonly ip: string;
+  readonly userAgent: string;
+  readonly origin: string;
+  readonly headers: Record<string, string>;
+  readonly body: Record<string, unknown>;
+  readonly query: Record<string, unknown>;
+  readonly params: Record<string, unknown>;
+}
+
+interface ErrorSummary {
+  readonly error: string;
+  readonly timestamp: number;
+  readonly count: number;
+}
+
+interface ErrorMetrics {
+  readonly totalUniqueErrors: number;
+  readonly recentErrors: readonly ErrorSummary[];
+  readonly topErrors: readonly [string, number][];
+}
+
+// Type-safe error map with comprehensive HTTP status coverage
+const HTTP_ERROR_MAP: Record<number, string> = {
+  [HttpStatus.BAD_REQUEST]: 'Bad Request',
+  [HttpStatus.UNAUTHORIZED]: 'Unauthorized',
+  [HttpStatus.PAYMENT_REQUIRED]: 'Payment Required',
+  [HttpStatus.FORBIDDEN]: 'Forbidden',
+  [HttpStatus.NOT_FOUND]: 'Not Found',
+  [HttpStatus.METHOD_NOT_ALLOWED]: 'Method Not Allowed',
+  [HttpStatus.NOT_ACCEPTABLE]: 'Not Acceptable',
+  [HttpStatus.PROXY_AUTHENTICATION_REQUIRED]: 'Proxy Authentication Required',
+  [HttpStatus.REQUEST_TIMEOUT]: 'Request Timeout',
+  [HttpStatus.CONFLICT]: 'Conflict',
+  [HttpStatus.GONE]: 'Gone',
+  [HttpStatus.LENGTH_REQUIRED]: 'Length Required',
+  [HttpStatus.PRECONDITION_FAILED]: 'Precondition Failed',
+  [HttpStatus.PAYLOAD_TOO_LARGE]: 'Payload Too Large',
+  [HttpStatus.URI_TOO_LONG]: 'URI Too Long',
+  [HttpStatus.UNSUPPORTED_MEDIA_TYPE]: 'Unsupported Media Type',
+  [HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE]: 'Requested Range Not Satisfiable',
+  [HttpStatus.EXPECTATION_FAILED]: 'Expectation Failed',
+  [HttpStatus.I_AM_A_TEAPOT]: "I'm a Teapot",
+  [HttpStatus.MISDIRECTED]: 'Misdirected Request',
+  [HttpStatus.UNPROCESSABLE_ENTITY]: 'Unprocessable Entity',
+  [HttpStatus.LOCKED]: 'Locked',
+  [HttpStatus.FAILED_DEPENDENCY]: 'Failed Dependency',
+  [HttpStatus.TOO_EARLY]: 'Too Early',
+  [HttpStatus.UPGRADE_REQUIRED]: 'Upgrade Required',
+  [HttpStatus.PRECONDITION_REQUIRED]: 'Precondition Required',
+  [HttpStatus.TOO_MANY_REQUESTS]: 'Too Many Requests',
+  [HttpStatus.REQUEST_HEADER_FIELDS_TOO_LARGE]: 'Request Header Fields Too Large',
+  [HttpStatus.UNAVAILABLE_FOR_LEGAL_REASONS]: 'Unavailable For Legal Reasons',
+  [HttpStatus.INTERNAL_SERVER_ERROR]: 'Internal Server Error',
+  [HttpStatus.NOT_IMPLEMENTED]: 'Not Implemented',
+  [HttpStatus.BAD_GATEWAY]: 'Bad Gateway',
+  [HttpStatus.SERVICE_UNAVAILABLE]: 'Service Unavailable',
+  [HttpStatus.GATEWAY_TIMEOUT]: 'Gateway Timeout',
+  [HttpStatus.HTTP_VERSION_NOT_SUPPORTED]: 'HTTP Version Not Supported',
+  [HttpStatus.VARIANT_ALSO_NEGOTIATES]: 'Variant Also Negotiates',
+  [HttpStatus.INSUFFICIENT_STORAGE]: 'Insufficient Storage',
+  [HttpStatus.LOOP_DETECTED]: 'Loop Detected',
+  [HttpStatus.NOT_EXTENDED]: 'Not Extended',
+  [HttpStatus.NETWORK_AUTHENTICATION_REQUIRED]: 'Network Authentication Required',
+} as const;
+
+// Sensitive fields that should be redacted in logs
+const SENSITIVE_FIELDS = [
+  'password', 'token', 'secret', 'key', 'credential', 'authorization', 
+  'cookie', 'x-api-key', 'refreshToken', 'accessToken', 'jwt'
+] as const;
+
+// Sensitive headers that should be redacted
+const SENSITIVE_HEADERS = [
+  'authorization', 'cookie', 'x-api-key', 'x-auth-token', 'x-access-token'
+] as const;
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger(AllExceptionsFilter.name);
   private readonly isDevelopment = process.env.NODE_ENV !== 'production';
+  private readonly errorCount = new Map<string, number>();
+  private readonly lastErrors: ErrorSummary[] = [];
+  private readonly maxErrorHistory = 100;
 
-  catch(exception: unknown, host: ArgumentsHost) {
+  catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
 
     const errorResponse = this.buildErrorResponse(exception, request);
+    
+    // Track error for metrics
+    this.trackError(exception, request);
     
     // Log error with appropriate level
     this.logError(exception, request, errorResponse);
@@ -60,19 +140,19 @@ export class AllExceptionsFilter implements ExceptionFilter {
     let statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
     let error = 'Internal Server Error';
     let message: string | string[] = 'An unexpected error occurred';
-    let details: any = undefined;
+    let details: Record<string, unknown> | undefined = undefined;
     let stack: string | undefined = undefined;
 
-    // Handle different exception types
+    // Handle different exception types with comprehensive type checking
     if (exception instanceof HttpException) {
       statusCode = exception.getStatus();
       const exceptionResponse = exception.getResponse();
       
-      if (typeof exceptionResponse === 'object') {
-        const responseObj = exceptionResponse as any;
-        message = responseObj.message || exception.message;
-        error = responseObj.error || this.getErrorNameFromStatus(statusCode);
-        details = responseObj.details;
+      if (typeof exceptionResponse === 'object' && exceptionResponse !== null) {
+        const responseObj = exceptionResponse as Record<string, unknown>;
+        message = (responseObj.message as string | string[]) || exception.message;
+        error = (responseObj.error as string) || this.getErrorNameFromStatus(statusCode);
+        details = responseObj.details as Record<string, unknown>;
       } else {
         message = exceptionResponse as string;
         error = this.getErrorNameFromStatus(statusCode);
@@ -85,7 +165,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       details = this.isDevelopment ? {
         query: exception.query,
         parameters: exception.parameters,
-        driverError: exception.driverError
+        driverError: this.sanitizeObject(exception.driverError)
       } : undefined;
     }
     else if (exception instanceof EntityNotFoundError) {
@@ -94,21 +174,26 @@ export class AllExceptionsFilter implements ExceptionFilter {
       message = 'Requested resource not found';
     }
     else if (exception instanceof Error) {
-      // Handle validation errors
+      // Handle validation errors and other Error instances
       if (exception.name === 'ValidationError') {
         statusCode = HttpStatus.BAD_REQUEST;
         error = 'Validation Error';
         message = exception.message;
-        details = (exception as any).details;
+        details = (exception as unknown as { details?: Record<string, unknown> }).details;
       } else {
         message = this.isDevelopment ? exception.message : 'Internal server error';
         error = 'Internal Server Error';
       }
+      
+      // Include stack trace only in development
+      if (this.isDevelopment) {
+        stack = exception.stack;
+      }
     }
-
-    // Include stack trace in development
-    if (this.isDevelopment && exception instanceof Error) {
-      stack = exception.stack;
+    else {
+      // Handle non-Error exceptions
+      message = this.isDevelopment ? String(exception) : 'Internal server error';
+      error = 'Internal Server Error';
     }
 
     return {
@@ -124,13 +209,42 @@ export class AllExceptionsFilter implements ExceptionFilter {
     };
   }
 
-  private logError(exception: unknown, request: Request, errorResponse: ErrorResponse) {
+  private trackError(exception: unknown, request: Request): void {
+    const errorKey = this.getErrorKey(exception);
+    const count = (this.errorCount.get(errorKey) || 0) + 1;
+    this.errorCount.set(errorKey, count);
+    
+    this.lastErrors.unshift({
+      error: errorKey,
+      timestamp: Date.now(),
+      count
+    });
+    
+    // Maintain error history limit
+    if (this.lastErrors.length > this.maxErrorHistory) {
+      this.lastErrors.length = this.maxErrorHistory;
+    }
+    
+    // Alert on high error frequency
+    if (count > 10) {
+      this.logger.error(`🚨 High error frequency detected: ${errorKey} (${count} occurrences)`);
+    }
+  }
+
+  private getErrorKey(exception: unknown): string {
+    if (exception instanceof Error) {
+      return `${exception.name}: ${exception.message}`;
+    }
+    return String(exception);
+  }
+
+  private logError(exception: unknown, request: Request, errorResponse: ErrorResponse): void {
     const { statusCode, message, requestId, path, method } = errorResponse;
     const userAgent = request.get('User-Agent') || 'Unknown';
-    const ip = request.ip || 'Unknown';
+    const ip = this.getClientIp(request);
     const origin = request.get('Origin') || 'None';
 
-    const logContext = {
+    const logContext: ErrorContext = {
       requestId,
       method,
       path,
@@ -138,106 +252,148 @@ export class AllExceptionsFilter implements ExceptionFilter {
       ip,
       userAgent,
       origin,
-      headers: this.sanitizeHeaders(request.headers),
-      body: this.sanitizeBody(request.body),
-      query: request.query,
-      params: request.params
+      headers: this.sanitizeHeaders(request.headers as Record<string, string>),
+      body: this.sanitizeObject(request.body as Record<string, unknown>),
+      query: request.query as Record<string, unknown>,
+      params: request.params as Record<string, unknown>
     };
 
+    const logMessage = `${this.getLogIcon(statusCode)} ${method} ${path} - ${statusCode} - ${message}`;
+
     if (statusCode >= 500) {
-      this.logger.error(
-        `🚨 Server Error: ${message}`,
-        {
-          ...logContext,
-          exception: exception instanceof Error ? {
-            name: exception.name,
-            message: exception.message,
-            stack: exception.stack
-          } : exception
-        }
-      );
+      this.logger.error(logMessage, {
+        ...logContext,
+        exception: this.serializeException(exception),
+        stack: exception instanceof Error ? exception.stack : undefined
+      });
     } else if (statusCode >= 400) {
-      this.logger.warn(
-        `⚠️ Client Error: ${message}`,
-        logContext
-      );
+      this.logger.warn(logMessage, logContext);
     } else {
-      this.logger.log(
-        `ℹ️ Request processed: ${message}`,
-        logContext
-      );
+      this.logger.log(logMessage, logContext);
     }
   }
 
-  private addSecurityHeaders(response: Response) {
-    response.setHeader('X-Content-Type-Options', 'nosniff');
-    response.setHeader('X-Frame-Options', 'DENY');
-    response.setHeader('X-XSS-Protection', '1; mode=block');
-    response.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-    response.setHeader('Content-Security-Policy', "default-src 'self'");
+  private getClientIp(request: Request): string {
+    return (
+      (request.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+      (request.headers['x-real-ip'] as string) ||
+      request.connection?.remoteAddress ||
+      request.socket?.remoteAddress ||
+      'Unknown'
+    );
+  }
+
+  private serializeException(exception: unknown): Record<string, unknown> {
+    if (exception instanceof Error) {
+      return {
+        name: exception.name,
+        message: exception.message,
+        cause: exception.cause,
+        ...(this.isDevelopment && { stack: exception.stack })
+      };
+    }
+    return { exception: String(exception) };
+  }
+
+  private getLogIcon(statusCode: number): string {
+    if (statusCode >= 500) return '🚨';
+    if (statusCode >= 400) return '⚠️';
+    return 'ℹ️';
+  }
+
+  private addSecurityHeaders(response: Response): void {
+    const securityHeaders = {
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'DENY',
+      'X-XSS-Protection': '1; mode=block',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+      'Content-Security-Policy': "default-src 'self'",
+      'X-Permitted-Cross-Domain-Policies': 'none',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    } as const;
+
+    Object.entries(securityHeaders).forEach(([header, value]) => {
+      response.setHeader(header, value);
+    });
   }
 
   private getErrorNameFromStatus(statusCode: number): string {
-    const errorMap = {
-      [HttpStatus.BAD_REQUEST]: 'Bad Request',
-      [HttpStatus.UNAUTHORIZED]: 'Unauthorized',
-      [HttpStatus.FORBIDDEN]: 'Forbidden',
-      [HttpStatus.NOT_FOUND]: 'Not Found',
-      [HttpStatus.CONFLICT]: 'Conflict',
-      [HttpStatus.UNPROCESSABLE_ENTITY]: 'Unprocessable Entity',
-      [HttpStatus.TOO_MANY_REQUESTS]: 'Too Many Requests',
-      [HttpStatus.INTERNAL_SERVER_ERROR]: 'Internal Server Error',
-      [HttpStatus.BAD_GATEWAY]: 'Bad Gateway',
-      [HttpStatus.SERVICE_UNAVAILABLE]: 'Service Unavailable',
-      [HttpStatus.GATEWAY_TIMEOUT]: 'Gateway Timeout'
-    };
-
-    return errorMap[statusCode] || 'Unknown Error';
+    return HTTP_ERROR_MAP[statusCode] || 'Unknown Error';
   }
 
   private generateRequestId(): string {
-    return `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const timestamp = Date.now().toString(36);
+    const randomPart = Math.random().toString(36).substring(2, 15);
+    return `req_${timestamp}_${randomPart}`;
   }
 
-  private sanitizeHeaders(headers: any): any {
-    const sensitiveHeaders = ['authorization', 'cookie', 'x-api-key'];
+  private sanitizeHeaders(headers: Record<string, string>): Record<string, string> {
     const sanitized = { ...headers };
     
-    sensitiveHeaders.forEach(header => {
-      if (sanitized[header]) {
-        sanitized[header] = '[REDACTED]';
-      }
+    SENSITIVE_HEADERS.forEach(header => {
+      const lowerHeader = header.toLowerCase();
+      Object.keys(sanitized).forEach(key => {
+        if (key.toLowerCase() === lowerHeader) {
+          sanitized[key] = '[REDACTED]';
+        }
+      });
     });
     
     return sanitized;
   }
 
-  private sanitizeBody(body: any): any {
-    if (!body || typeof body !== 'object') {
-      return body;
+  private sanitizeObject(obj: unknown): unknown {
+    if (!obj || typeof obj !== 'object') {
+      return obj;
     }
 
-    const sensitiveFields = ['password', 'token', 'secret', 'key', 'credential'];
-    const sanitized = { ...body };
+    if (Array.isArray(obj)) {
+      return obj.map(item => this.sanitizeObject(item));
+    }
+
+    const result: Record<string, unknown> = {};
+    const objectRecord = obj as Record<string, unknown>;
     
-    const sanitizeObject = (obj: any): any => {
-      if (!obj || typeof obj !== 'object') {
-        return obj;
+    Object.entries(objectRecord).forEach(([key, value]) => {
+      if (this.isSensitiveField(key)) {
+        result[key] = '[REDACTED]';
+      } else if (typeof value === 'object' && value !== null) {
+        result[key] = this.sanitizeObject(value);
+      } else {
+        result[key] = value;
       }
-      
-      const result = Array.isArray(obj) ? [...obj] : { ...obj };
-      
-      Object.keys(result).forEach(key => {
-        if (sensitiveFields.some(field => key.toLowerCase().includes(field))) {
-          result[key] = '[REDACTED]';
-        } else if (typeof result[key] === 'object') {
-          result[key] = sanitizeObject(result[key]);
-        }
-      });
-      
-      return result;
-    };
+    });
     
-    return sanitizeObject(sanitized);
+    return result;
+  }
+
+  private isSensitiveField(fieldName: string): boolean {
+    const lowerFieldName = fieldName.toLowerCase();
+    return SENSITIVE_FIELDS.some(sensitiveField => 
+      lowerFieldName.includes(sensitiveField.toLowerCase())
+    );
+  }
+
+  /**
+   * Get error metrics for monitoring and alerting
+   */
+  public getErrorMetrics(): ErrorMetrics {
+    return {
+      totalUniqueErrors: this.errorCount.size,
+      recentErrors: this.lastErrors.slice(0, 10),
+      topErrors: Array.from(this.errorCount.entries())
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 5)
+    };
+  }
+
+  /**
+   * Clear error metrics (useful for testing or periodic cleanup)
+   */
+  public clearErrorMetrics(): void {
+    this.errorCount.clear();
+    this.lastErrors.length = 0;
   }
 }
