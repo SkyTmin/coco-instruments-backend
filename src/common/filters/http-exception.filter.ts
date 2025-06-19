@@ -48,6 +48,20 @@ interface ErrorMetrics {
   readonly topErrors: readonly [string, number][];
 }
 
+// Additional HTTP status codes that might be missing in older NestJS versions
+const ADDITIONAL_HTTP_STATUSES = {
+  LOCKED: 423,
+  TOO_EARLY: 425,
+  UPGRADE_REQUIRED: 426,
+  REQUEST_HEADER_FIELDS_TOO_LARGE: 431,
+  UNAVAILABLE_FOR_LEGAL_REASONS: 451,
+  VARIANT_ALSO_NEGOTIATES: 506,
+  INSUFFICIENT_STORAGE: 507,
+  LOOP_DETECTED: 508,
+  NOT_EXTENDED: 510,
+  NETWORK_AUTHENTICATION_REQUIRED: 511,
+} as const;
+
 // Type-safe error map with comprehensive HTTP status coverage
 const HTTP_ERROR_MAP: Record<number, string> = {
   [HttpStatus.BAD_REQUEST]: 'Bad Request',
@@ -71,25 +85,25 @@ const HTTP_ERROR_MAP: Record<number, string> = {
   [HttpStatus.I_AM_A_TEAPOT]: "I'm a Teapot",
   [HttpStatus.MISDIRECTED]: 'Misdirected Request',
   [HttpStatus.UNPROCESSABLE_ENTITY]: 'Unprocessable Entity',
-  [HttpStatus.LOCKED]: 'Locked',
+  [ADDITIONAL_HTTP_STATUSES.LOCKED]: 'Locked',
   [HttpStatus.FAILED_DEPENDENCY]: 'Failed Dependency',
-  [HttpStatus.TOO_EARLY]: 'Too Early',
-  [HttpStatus.UPGRADE_REQUIRED]: 'Upgrade Required',
+  [ADDITIONAL_HTTP_STATUSES.TOO_EARLY]: 'Too Early',
+  [ADDITIONAL_HTTP_STATUSES.UPGRADE_REQUIRED]: 'Upgrade Required',
   [HttpStatus.PRECONDITION_REQUIRED]: 'Precondition Required',
   [HttpStatus.TOO_MANY_REQUESTS]: 'Too Many Requests',
-  [HttpStatus.REQUEST_HEADER_FIELDS_TOO_LARGE]: 'Request Header Fields Too Large',
-  [HttpStatus.UNAVAILABLE_FOR_LEGAL_REASONS]: 'Unavailable For Legal Reasons',
+  [ADDITIONAL_HTTP_STATUSES.REQUEST_HEADER_FIELDS_TOO_LARGE]: 'Request Header Fields Too Large',
+  [ADDITIONAL_HTTP_STATUSES.UNAVAILABLE_FOR_LEGAL_REASONS]: 'Unavailable For Legal Reasons',
   [HttpStatus.INTERNAL_SERVER_ERROR]: 'Internal Server Error',
   [HttpStatus.NOT_IMPLEMENTED]: 'Not Implemented',
   [HttpStatus.BAD_GATEWAY]: 'Bad Gateway',
   [HttpStatus.SERVICE_UNAVAILABLE]: 'Service Unavailable',
   [HttpStatus.GATEWAY_TIMEOUT]: 'Gateway Timeout',
   [HttpStatus.HTTP_VERSION_NOT_SUPPORTED]: 'HTTP Version Not Supported',
-  [HttpStatus.VARIANT_ALSO_NEGOTIATES]: 'Variant Also Negotiates',
-  [HttpStatus.INSUFFICIENT_STORAGE]: 'Insufficient Storage',
-  [HttpStatus.LOOP_DETECTED]: 'Loop Detected',
-  [HttpStatus.NOT_EXTENDED]: 'Not Extended',
-  [HttpStatus.NETWORK_AUTHENTICATION_REQUIRED]: 'Network Authentication Required',
+  [ADDITIONAL_HTTP_STATUSES.VARIANT_ALSO_NEGOTIATES]: 'Variant Also Negotiates',
+  [ADDITIONAL_HTTP_STATUSES.INSUFFICIENT_STORAGE]: 'Insufficient Storage',
+  [ADDITIONAL_HTTP_STATUSES.LOOP_DETECTED]: 'Loop Detected',
+  [ADDITIONAL_HTTP_STATUSES.NOT_EXTENDED]: 'Not Extended',
+  [ADDITIONAL_HTTP_STATUSES.NETWORK_AUTHENTICATION_REQUIRED]: 'Network Authentication Required',
 } as const;
 
 // Sensitive fields that should be redacted in logs
@@ -253,7 +267,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       userAgent,
       origin,
       headers: this.sanitizeHeaders(request.headers as Record<string, string>),
-      body: this.sanitizeObject(request.body as Record<string, unknown>),
+      body: this.sanitizeObject(request.body) as Record<string, unknown>,
       query: request.query as Record<string, unknown>,
       params: request.params as Record<string, unknown>
     };
@@ -285,12 +299,21 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
   private serializeException(exception: unknown): Record<string, unknown> {
     if (exception instanceof Error) {
-      return {
+      const errorObj: Record<string, unknown> = {
         name: exception.name,
         message: exception.message,
-        cause: exception.cause,
-        ...(this.isDevelopment && { stack: exception.stack })
       };
+      
+      // Add cause if it exists (for newer TypeScript/Node versions)
+      if ('cause' in exception && exception.cause !== undefined) {
+        errorObj.cause = exception.cause;
+      }
+      
+      if (this.isDevelopment && exception.stack) {
+        errorObj.stack = exception.stack;
+      }
+      
+      return errorObj;
     }
     return { exception: String(exception) };
   }
