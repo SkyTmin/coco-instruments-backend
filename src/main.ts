@@ -5,6 +5,7 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { ConfigService } from '@nestjs/config';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
+import { Request, Response, NextFunction } from 'express';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -116,7 +117,7 @@ async function bootstrap() {
   );
 
   // Request/Response Logging Middleware
-  app.use((req, res, next) => {
+  app.use((req: Request, res: Response, next: NextFunction) => {
     const startTime = Date.now();
     const { method, url, headers } = req;
     
@@ -134,7 +135,7 @@ async function bootstrap() {
   });
 
   // Health Check Endpoint (before global prefix)
-  app.use('/health', (req, res) => {
+  app.use('/health', (req: Request, res: Response) => {
     res.status(200).json({
       status: 'ok',
       timestamp: new Date().toISOString(),
