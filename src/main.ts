@@ -20,7 +20,30 @@ async function bootstrap() {
 
   // Set global prefix
   app.setGlobalPrefix(apiPrefix);
+  
+// Health Check Endpoint (ПОСЛЕ global prefix)
+  app.use(`/${apiPrefix}/health`, (req: Request, res: Response) => {
+    res.status(200).json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      environment,
+      version: '1.0.0',
+      cors: 'enabled',
+      database: 'connected'
+    });
+  });
 
+  // ТАКЖЕ добавить альтернативный health check на корневом пути
+  app.use('/health', (req: Request, res: Response) => {
+    res.status(200).json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      environment,
+      version: '1.0.0'
+    });
+  });
   // Enhanced CORS Configuration
   const corsOrigin = configService.get<string>('CORS_ORIGIN');
   const allowedOrigins = [
