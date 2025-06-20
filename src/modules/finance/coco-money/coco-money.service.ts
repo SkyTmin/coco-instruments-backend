@@ -170,7 +170,66 @@ export class CocoMoneyService {
 
     return {
       success: true,
-      data: savedExpense,
+      data: {
+        id: savedExpense.id,
+        name: savedExpense.name,
+        amount: Number(savedExpense.amount),
+        category: savedExpense.category,
+        note: savedExpense.note,
+      },
+    };
+  }
+
+  // НОВЫЙ МЕТОД: Удаление расхода
+  async deleteExpense(userId: string, sheetId: string, expenseId: string) {
+    // Проверяем, что лист принадлежит пользователю
+    await this.findUserSheet(userId, sheetId);
+
+    // Ищем расход
+    const expense = await this.expenseRepository.findOne({
+      where: { id: expenseId, sheetId },
+    });
+
+    if (!expense) {
+      throw new NotFoundException('Expense not found');
+    }
+
+    // Удаляем расход
+    await this.expenseRepository.remove(expense);
+
+    return {
+      success: true,
+      data: { message: 'Расход удален' },
+    };
+  }
+
+  // НОВЫЙ МЕТОД: Обновление расхода
+  async updateExpense(userId: string, sheetId: string, expenseId: string, updateExpenseDto: CreateExpenseDto) {
+    // Проверяем, что лист принадлежит пользователю
+    await this.findUserSheet(userId, sheetId);
+
+    // Ищем расход
+    const expense = await this.expenseRepository.findOne({
+      where: { id: expenseId, sheetId },
+    });
+
+    if (!expense) {
+      throw new NotFoundException('Expense not found');
+    }
+
+    // Обновляем расход
+    Object.assign(expense, updateExpenseDto);
+    const savedExpense = await this.expenseRepository.save(expense);
+
+    return {
+      success: true,
+      data: {
+        id: savedExpense.id,
+        name: savedExpense.name,
+        amount: Number(savedExpense.amount),
+        category: savedExpense.category,
+        note: savedExpense.note,
+      },
     };
   }
 
@@ -221,6 +280,7 @@ export class CocoMoneyService {
       date: sheet.date.toISOString().split('T')[0], // Форматируем дату как YYYY-MM-DD
       note: sheet.note,
       expenses: sheet.expenses?.map(expense => ({
+        id: expense.id, // ВАЖНО: Добавляем ID для возможности удаления
         name: expense.name,
         amount: Number(expense.amount),
         category: expense.category,
