@@ -43,7 +43,9 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       console.log('✅ JWT Strategy - User validated successfully:', user.id);
       return user;
     } catch (error) {
-      console.error('❌ JWT Strategy validation error:', error.message);
+      // Исправляем проблему с типизацией error
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('❌ JWT Strategy validation error:', errorMessage);
       throw new UnauthorizedException('Token validation failed');
     }
   }
