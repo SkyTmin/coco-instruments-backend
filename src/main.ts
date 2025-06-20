@@ -20,30 +20,7 @@ async function bootstrap() {
 
   // Set global prefix
   app.setGlobalPrefix(apiPrefix);
-  
-// Health Check Endpoint (ПОСЛЕ global prefix)
-  app.use(`/${apiPrefix}/health`, (req: Request, res: Response) => {
-    res.status(200).json({
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      environment,
-      version: '1.0.0',
-      cors: 'enabled',
-      database: 'connected'
-    });
-  });
 
-  // ТАКЖЕ добавить альтернативный health check на корневом пути
-  app.use('/health', (req: Request, res: Response) => {
-    res.status(200).json({
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      environment,
-      version: '1.0.0'
-    });
-  });
   // Enhanced CORS Configuration
   const corsOrigin = configService.get<string>('CORS_ORIGIN');
   const allowedOrigins = [
@@ -103,6 +80,32 @@ async function bootstrap() {
     maxAge: 86400, // 24 hours
     preflightContinue: false,
     optionsSuccessStatus: 204
+  });
+
+  // Health Check Endpoints (ПОСЛЕ CORS)
+  app.use('/health', (req: Request, res: Response) => {
+    res.status(200).json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      environment,
+      version: '1.0.0',
+      cors: 'enabled',
+      database: 'connected'
+    });
+  });
+
+  app.use(`/${apiPrefix}/health`, (req: Request, res: Response) => {
+    res.status(200).json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      environment,
+      version: '1.0.0',
+      api: 'Coco Instruments Backend',
+      cors: 'enabled',
+      database: 'connected'
+    });
   });
 
   // Global Exception Filter with enhanced logging
@@ -165,19 +168,6 @@ async function bootstrap() {
     next();
   });
 
-  // Health Check Endpoint (before global prefix)
-  app.use('/health', (req: Request, res: Response) => {
-    res.status(200).json({
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      environment,
-      version: '1.0.0',
-      cors: 'enabled',
-      database: 'connected'
-    });
-  });
-
   // Enhanced Security Headers Middleware
   app.use((req: Request, res: Response, next: NextFunction) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -228,17 +218,18 @@ async function bootstrap() {
   app.enableShutdownHooks();
   
   // Global error handling for uncaught exceptions
-  process.on('uncaughtException', (error) => {
-    console.error('🚨 Uncaught Exception:', error);
+  process.on('uncaughtException', (error: unknown) => {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('🚨 Uncaught Exception:', errorMessage);
     process.exit(1);
   });
 
-  process.on('unhandledRejection', (reason, promise) => {
+  process.on('unhandledRejection', (reason: unknown, promise: Promise<any>) => {
     console.error('🚨 Unhandled Rejection at:', promise, 'reason:', reason);
     process.exit(1);
   });
 
-// Start server with proper binding
+  // Start server with proper binding
   await app.listen(port, '0.0.0.0');
 
   // Enhanced startup logging
@@ -259,20 +250,12 @@ async function bootstrap() {
   }
   
   console.log('==========================================\n');
+}
 
-  // Проверка здоровья при запуске
-  setTimeout(async () => {
-    try {
-      const response = await fetch(`http://localhost:${port}/health`);
-      const healthData = await response.json();
-      console.log('✅ Health check passed:', healthData.status);
-    } catch (error) {
-      console.error('❌ Health check failed:', error.message);
-    }
-  }, 2000);
-
-bootstrap().catch((error) => {
-  console.error('❌ Application failed to start:', error);
-  console.error('Stack trace:', error.stack);
+bootstrap().catch((error: unknown) => {
+  const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+  const errorStack = error instanceof Error ? error.stack : 'No stack trace';
+  console.error('❌ Application failed to start:', errorMessage);
+  console.error('Stack trace:', errorStack);
   process.exit(1);
 });
