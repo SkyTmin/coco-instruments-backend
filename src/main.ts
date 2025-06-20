@@ -238,7 +238,7 @@ async function bootstrap() {
     process.exit(1);
   });
 
-  // Start server with proper binding
+// Start server with proper binding
   await app.listen(port, '0.0.0.0');
 
   // Enhanced startup logging
@@ -248,6 +248,7 @@ async function bootstrap() {
   console.log(`🚪 Port: ${port}`);
   console.log(`🔗 API Prefix: ${apiPrefix}`);
   console.log(`🏥 Health Check: http://localhost:${port}/health`);
+  console.log(`🏥 API Health Check: http://localhost:${port}/${apiPrefix}/health`);
   console.log(`📡 API Base URL: http://localhost:${port}/${apiPrefix}`);
   console.log(`🗄️  Database: ${configService.get<string>('DATABASE_HOST')}:${configService.get<string>('DATABASE_PORT')}/${configService.get<string>('DATABASE_NAME')}`);
   console.log(`🔐 JWT Secret: ${configService.get<string>('jwt.secret') ? '✅ Configured' : '❌ Missing'}`);
@@ -258,7 +259,17 @@ async function bootstrap() {
   }
   
   console.log('==========================================\n');
-}
+
+  // Проверка здоровья при запуске
+  setTimeout(async () => {
+    try {
+      const response = await fetch(`http://localhost:${port}/health`);
+      const healthData = await response.json();
+      console.log('✅ Health check passed:', healthData.status);
+    } catch (error) {
+      console.error('❌ Health check failed:', error.message);
+    }
+  }, 2000);
 
 bootstrap().catch((error) => {
   console.error('❌ Application failed to start:', error);
