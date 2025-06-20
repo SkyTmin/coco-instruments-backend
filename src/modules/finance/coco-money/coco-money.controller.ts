@@ -28,7 +28,7 @@ import { SheetType } from '@database/entities/sheet.entity';
 @ApiTags('Coco Money')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
-@Controller('coco-money') // Изменили путь чтобы соответствовал фронтенду
+@Controller('coco-money')
 export class CocoMoneyController {
   constructor(private readonly cocoMoneyService: CocoMoneyService) {}
 
@@ -108,6 +108,36 @@ export class CocoMoneyController {
     @Body() createExpenseDto: CreateExpenseDto,
   ) {
     return this.cocoMoneyService.addExpense(user.id, sheetId, createExpenseDto);
+  }
+
+  // НОВЫЙ ENDPOINT: Удаление расхода
+  @Delete('sheets/:sheetId/expenses/:expenseId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete expense from sheet' })
+  @ApiResponse({ status: 204, description: 'Expense deleted successfully' })
+  @ApiResponse({ status: 404, description: 'Expense not found' })
+  @ApiResponse({ status: 403, description: 'Access denied' })
+  async deleteExpense(
+    @GetUser() user: User,
+    @Param('sheetId', ParseUUIDPipe) sheetId: string,
+    @Param('expenseId', ParseUUIDPipe) expenseId: string,
+  ) {
+    return this.cocoMoneyService.deleteExpense(user.id, sheetId, expenseId);
+  }
+
+  // НОВЫЙ ENDPOINT: Обновление расхода
+  @Put('sheets/:sheetId/expenses/:expenseId')
+  @ApiOperation({ summary: 'Update expense in sheet' })
+  @ApiResponse({ status: 200, description: 'Expense updated successfully' })
+  @ApiResponse({ status: 404, description: 'Expense not found' })
+  @ApiResponse({ status: 403, description: 'Access denied' })
+  async updateExpense(
+    @GetUser() user: User,
+    @Param('sheetId', ParseUUIDPipe) sheetId: string,
+    @Param('expenseId', ParseUUIDPipe) expenseId: string,
+    @Body() updateExpenseDto: CreateExpenseDto,
+  ) {
+    return this.cocoMoneyService.updateExpense(user.id, sheetId, expenseId, updateExpenseDto);
   }
 
   @Post('categories/create')
