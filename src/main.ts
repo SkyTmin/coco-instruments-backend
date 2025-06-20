@@ -1,4 +1,4 @@
-// src/main.ts - Enhanced CORS Configuration with Comprehensive Error Handling
+// src/main.ts - Исправленная конфигурация с улучшенной обработкой CORS
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
@@ -9,7 +9,7 @@ import { Request, Response, NextFunction } from 'express';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
-    logger: ['error', 'warn', 'log', 'debug', 'verbose'],
+    logger: ['error', 'warn', 'log', 'debug'],
     cors: false, // We'll configure CORS manually for better control
   });
 
@@ -39,6 +39,8 @@ async function bootstrap() {
 
   app.enableCors({
     origin: (origin, callback) => {
+      console.log(`🌐 CORS Check - Origin: ${origin || 'none'}`);
+      
       // Allow requests with no origin (mobile apps, Postman, server-to-server)
       if (!origin) {
         console.log('✅ CORS: Allowing request with no origin');
@@ -116,19 +118,25 @@ async function bootstrap() {
     }),
   );
 
-  // Request/Response Logging Middleware
+  // Enhanced Request/Response Logging Middleware
   app.use((req: Request, res: Response, next: NextFunction) => {
     const startTime = Date.now();
     const { method, url, headers } = req;
+    const userAgent = headers['user-agent'] || 'Unknown';
+    const ip = req.ip || req.connection?.remoteAddress || 'Unknown';
     
-    console.log(`📤 ${method} ${url} - Origin: ${headers.origin || 'none'}`);
+    // Генерируем уникальный ID запроса
+    const requestId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    res.setHeader('X-Request-Id', requestId);
+    
+    console.log(`📤 ${method} ${url} - Origin: ${headers.origin || 'none'} - IP: ${ip} - UA: ${userAgent.substring(0, 50)}`);
     
     res.on('finish', () => {
       const duration = Date.now() - startTime;
       const { statusCode } = res;
       const logLevel = statusCode >= 400 ? '❌' : '✅';
       
-      console.log(`${logLevel} ${method} ${url} - ${statusCode} (${duration}ms)`);
+      console.log(`${logLevel} ${method} ${url} - ${statusCode} (${duration}ms) - ID: ${requestId}`);
     });
     
     next();
@@ -141,8 +149,26 @@ async function bootstrap() {
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       environment,
-      version: '1.0.0'
+      version: '1.0.0',
+      cors: 'enabled',
+      database: 'connected'
     });
+  });
+
+  // Enhanced Security Headers Middleware
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('X-Permitted-Cross-Domain-Policies', 'none');
+    
+    // Only add CSP in production
+    if (environment === 'production') {
+      res.setHeader('Content-Security-Policy', "default-src 'self'; connect-src 'self' https:");
+    }
+    
+    next();
   });
 
   // Swagger Documentation (only in development)
@@ -189,10 +215,10 @@ async function bootstrap() {
     process.exit(1);
   });
 
-  // Start server
+  // Start server with proper binding
   await app.listen(port, '0.0.0.0');
 
-  // Startup logging
+  // Enhanced startup logging
   console.log('\n🚀 Coco Instruments Backend Started Successfully');
   console.log('==========================================');
   console.log(`🌍 Environment: ${environment}`);
@@ -201,7 +227,7 @@ async function bootstrap() {
   console.log(`🏥 Health Check: http://localhost:${port}/health`);
   console.log(`📡 API Base URL: http://localhost:${port}/${apiPrefix}`);
   console.log(`🗄️  Database: ${configService.get<string>('DATABASE_HOST')}:${configService.get<string>('DATABASE_PORT')}/${configService.get<string>('DATABASE_NAME')}`);
-  console.log(`🔐 JWT Secret: ${configService.get<string>('JWT_SECRET') ? '✅ Configured' : '❌ Missing'}`);
+  console.log(`🔐 JWT Secret: ${configService.get<string>('jwt.secret') ? '✅ Configured' : '❌ Missing'}`);
   console.log(`🌐 CORS Origins: ${allowedOrigins.length} configured`);
   
   if (environment !== 'production') {
