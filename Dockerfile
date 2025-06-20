@@ -1,4 +1,3 @@
-# Dockerfile - ПОЛНАЯ ЗАМЕНА
 # --- Development/Build Stage ---
 FROM node:20-alpine AS builder
 
@@ -25,6 +24,9 @@ RUN npm run build
 # Проверяем что файлы собрались
 RUN ls -la dist/
 
+# Проверяем структуру database в dist
+RUN ls -la dist/database/ || echo "No database folder in dist"
+
 # --- Production Stage ---
 FROM node:20-alpine AS production
 
@@ -37,11 +39,8 @@ RUN apk add --no-cache curl
 COPY package*.json ./
 RUN npm ci --only=production
 
-# Копируем собранное приложение
+# Копируем собранное приложение (миграции уже скомпилированы внутри)
 COPY --from=builder /app/dist ./dist
-
-# Копируем файлы миграций если они есть
-COPY --from=builder /app/src/database/migrations ./dist/database/migrations 2>/dev/null || true
 
 # Устанавливаем переменные окружения
 ENV NODE_ENV=production
