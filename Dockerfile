@@ -1,37 +1,47 @@
-# --- Development/Build Stage ---
+# --- Build Stage ---
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Устанавливаем bash и необходимые инструменты
-RUN apk add --no-cache bash python3 make g++ curl
+# Устанавливаем необходимые инструменты для сборки
+RUN apk add --no-cache python3 make g++ curl bash
 
-# Копируем только package.json и lock файл
+# Копируем файлы зависимостей
 COPY package*.json ./
+COPY tsconfig*.json ./
+COPY nest-cli.json ./
 
-# Устанавливаем зависимости
+# Устанавливаем ВСЕ зависимости (включая dev)
 RUN npm ci
 
-# Копируем остальные файлы проекта
-COPY . .
+# Копируем исходный код
+COPY src ./src
 
-# Проверка TypeScript (можно удалить на проде)
-RUN npx tsc --version
-
-# Сборка проекта
-RUN npm run build
+# ВАЖНО: Проверяем структуру и компилируем с подробным логированием
+RUN echo "=== Checking source files ===" && \
+    ls -la && \
+    ls -la src/ && \
+    echo "=== Running TypeScript compilation ===" && \
+    npm run build && \
+    echo "=== Build completed, checking dist ===" && \
+    ls -la dist/ && \
+    echo "=== Dist contents ===" && \
+    find dist -type f | head -20
 
 # --- Production Stage ---
 FROM node:20-alpine AS production
 
 WORKDIR /app
 
-# Устанавливаем только production зависимости
+# Копируем package.json для установки production зависимостей
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN npm ci --only=production
 
 # Копируем собранное приложение
 COPY --from=builder /app/dist ./dist
+
+# Копируем .env если нужно (для Railway это не обязательно)
+# COPY .env* ./
 
 # Устанавливаем переменные окружения
 ENV NODE_ENV=production
@@ -39,9 +49,5 @@ ENV PORT=3000
 
 EXPOSE 3000
 
-# Healthcheck (опционально, но полезно)
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD curl -f http://localhost:3000/api/v1/health || exit 1
-
-# Запуск
-CMD ["node", "dist/main"]
+# Запускаем приложение
+CMD ["node", "dist/main.js"]
