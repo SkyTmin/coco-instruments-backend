@@ -15,31 +15,22 @@ RUN npm ci
 # Копируем остальные файлы проекта
 COPY . .
 
-# Проверяем наличие TypeScript
+# Проверка TypeScript (можно удалить на проде)
 RUN npx tsc --version
 
-# Сборка проекта NestJS
+# Сборка проекта
 RUN npm run build
-
-# Проверяем что файлы собрались
-RUN ls -la dist/
-
-# Проверяем структуру database в dist
-RUN ls -la dist/database/ || echo "No database folder in dist"
 
 # --- Production Stage ---
 FROM node:20-alpine AS production
 
 WORKDIR /app
 
-# Устанавливаем только production зависимости и curl для health checks
-RUN apk add --no-cache curl
-
-# Копируем только package.json и lock файл
+# Устанавливаем только production зависимости
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm ci --omit=dev
 
-# Копируем собранное приложение (миграции уже скомпилированы внутри)
+# Копируем собранное приложение
 COPY --from=builder /app/dist ./dist
 
 # Устанавливаем переменные окружения
@@ -48,9 +39,9 @@ ENV PORT=3000
 
 EXPOSE 3000
 
-# Улучшенная health check команда
+# Healthcheck (опционально, но полезно)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD curl -f http://localhost:3000/health || exit 1
+  CMD curl -f http://localhost:3000/api/v1/health || exit 1
 
-# Запускаем приложение
+# Запуск
 CMD ["node", "dist/main"]
