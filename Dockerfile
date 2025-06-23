@@ -1,53 +1,35 @@
-# --- Build Stage ---
-FROM node:20-alpine AS builder
+# Простой Dockerfile без multi-stage для отладки
+FROM node:20-alpine
 
 WORKDIR /app
 
-# Устанавливаем необходимые инструменты для сборки
+# Устанавливаем инструменты для сборки
 RUN apk add --no-cache python3 make g++ curl bash
 
-# Копируем файлы зависимостей
-COPY package*.json ./
-COPY tsconfig*.json ./
-COPY nest-cli.json ./
+# Копируем все файлы
+COPY . .
 
-# Устанавливаем ВСЕ зависимости (включая dev)
+# Устанавливаем зависимости
 RUN npm ci
 
-# Копируем исходный код
-COPY src ./src
+# Компилируем с подробным выводом
+RUN echo "=== Starting build ===" && \
+    npm run build || (echo "BUILD FAILED!" && ls -la && exit 1)
 
-# ВАЖНО: Проверяем структуру и компилируем с подробным логированием
-RUN echo "=== Checking source files ===" && \
-    ls -la && \
-    ls -la src/ && \
-    echo "=== Running TypeScript compilation ===" && \
-    npm run build && \
-    echo "=== Build completed, checking dist ===" && \
-    ls -la dist/ && \
-    echo "=== Dist contents ===" && \
-    find dist -type f | head -20
+# Проверяем что dist существует
+RUN if [ ! -d "dist" ]; then \
+      echo "ERROR: dist directory not found!"; \
+      echo "Current directory contents:"; \
+      ls -la; \
+      exit 1; \
+    fi
 
-# --- Production Stage ---
-FROM node:20-alpine AS production
+# Удаляем исходники для уменьшения размера
+RUN rm -rf src/
 
-WORKDIR /app
-
-# Копируем package.json для установки production зависимостей
-COPY package*.json ./
-RUN npm ci --only=production
-
-# Копируем собранное приложение
-COPY --from=builder /app/dist ./dist
-
-# Копируем .env если нужно (для Railway это не обязательно)
-# COPY .env* ./
-
-# Устанавливаем переменные окружения
 ENV NODE_ENV=production
 ENV PORT=3000
 
 EXPOSE 3000
 
-# Запускаем приложение
 CMD ["node", "dist/main.js"]
