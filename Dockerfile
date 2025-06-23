@@ -1,35 +1,40 @@
-# Простой Dockerfile без multi-stage для отладки
-FROM node:20-alpine
+# --- Development/Build Stage ---
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Устанавливаем инструменты для сборки
-RUN apk add --no-cache python3 make g++ curl bash
+# Устанавливаем bash и необходимые инструменты
+RUN apk add --no-cache bash python3 make g++ curl
 
-# Копируем все файлы
-COPY . .
+# Копируем только package.json и lock файл
+COPY package*.json ./
 
 # Устанавливаем зависимости
 RUN npm ci
 
-# Компилируем с подробным выводом
-RUN echo "=== Starting build ===" && \
-    npm run build || (echo "BUILD FAILED!" && ls -la && exit 1)
+# Копируем остальные файлы проекта
+COPY . .
 
-# Проверяем что dist существует
-RUN if [ ! -d "dist" ]; then \
-      echo "ERROR: dist directory not found!"; \
-      echo "Current directory contents:"; \
-      ls -la; \
-      exit 1; \
-    fi
+# Сборка проекта
+RUN npm run build
 
-# Удаляем исходники для уменьшения размера
-RUN rm -rf src/
+# --- Production Stage ---
+FROM node:20-alpine AS production
 
+WORKDIR /app
+
+# Устанавливаем только production зависимости
+COPY package*.json ./
+RUN npm ci --omit=dev
+
+# Копируем собранное приложение
+COPY --from=builder /app/dist ./dist
+
+# Устанавливаем переменные окружения
 ENV NODE_ENV=production
 ENV PORT=3000
 
 EXPOSE 3000
 
-CMD ["node", "dist/main.js"]
+# Запуск
+CMD ["node", "dist/main"]
